@@ -1086,20 +1086,20 @@ animation_data <- animation_movie_features
 
 ```{r}
 # تعریف تابع برای جایگزینی اعداد فارسی با اعداد انگلیسی
-convert_to_english <- function(farsi_number) {
-  if (is.na(farsi_number)) return(NA)
-  english_number <- gsub("۰", "0", farsi_number)
-  english_number <- gsub("۱", "1", english_number)
-  english_number <- gsub("۲", "2", english_number)
-  english_number <- gsub("۳", "3", english_number)
-  english_number <- gsub("۴", "4", english_number)
-  english_number <- gsub("۵", "5", english_number)
-  english_number <- gsub("۶", "6", english_number)
-  english_number <- gsub("۷", "7", english_number)
-  english_number <- gsub("۸", "8", english_number)
-  english_number <- gsub("۹", "9", english_number)
-  return(english_number)
+num_chr <- list(
+  frs_nums = c("۰", "۱", "۲", "۳", "۴", "۵", "۶", "۷", "۸", "۹"),
+  eng_nums = c("0", "1", "2", "3", "4", "5", "6", "7", "8", "9")
+)
+convert_to_english <- function(number) {
+  if (is.na(number)) return(NA) else
+  for (i in 1:10) number <- gsub(num_char$frs_num[i], num_char$eng_num[i], number)
+    return(number)
 }
+
+
+
+
+
 
 # اطمینان از اینکه ستون IMDB_Link به نوع character تبدیل شده است
 animation_data$IMDB_Link <- as.character(animation_data$IMDB_Link)
