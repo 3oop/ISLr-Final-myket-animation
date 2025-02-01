@@ -1,0 +1,51 @@
+---
+title: "ISLr Final Project"
+author: "Pooria Assarehha"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(tidyverse)
+library(rvest)
+library(RSelenium)
+```
+
+```{r}
+main_url = 'https://myket.ir/video/animation'
+
+webpage = read_html(url)
+```
+
+```{r}
+# a function to scrape animatation page
+get_anime_data <- function(url) {
+  # fetch webpage
+  # create an empty list
+  # for feature in expected tags
+      # create a list item with feature name
+      # scrape that feature
+      # assign list item with scraped value
+  # retrun a named list
+}
+
+```
+
+### doing an example run
+
+```{r}
+example_url <- 'https://myket.ir/video/v-U5ZS7UJ6LZ/snoopy-presents-welcome-home-franklin'
+
+webpage <- read_html(example_url)
+
+cat(webpage)
+
+webpage %>%
+  html_elements('.class') %>%
+  cat()
+```

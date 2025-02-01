@@ -1,0 +1,20 @@
+---
+title: "ISL Final Project Phase 2"
+author: "Pooria Assarehha"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Data Cleaning
+
+Our Data is saved in `animation_data.csv`. 
+
+### Data Describtion
+
+### Validating Categorical Data
+
+### Examinig Numerical Data
