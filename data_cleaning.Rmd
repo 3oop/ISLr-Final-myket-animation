@@ -11,9 +11,17 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Data Cleaning
 
-Our Data is saved in `animation_data.csv`. 
+Running `amar.rmd` notebook will generate  Our Data is saved in `animation_data.csv`. 
+
+
+```{r}
+if (file.exists('animation_data.csv')) {
+  df <- read.csv('animation_data.csv')
+  } else print('Run data_collection notebook first!')
+```
 
 ### Data Describtion
+
 
 ### Validating Categorical Data
 
