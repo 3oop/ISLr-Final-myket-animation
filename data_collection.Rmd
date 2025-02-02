@@ -1,5 +1,5 @@
 ---
-title: "ISLr Final Project"
+title: "ISLr Final Project Phase I"
 author: "Pooria Assarehha"
 date: "`r Sys.Date()`"
 output: pdf_document
@@ -9,6 +9,7 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+## Data Collection
 
 ```{r}
 library(tidyverse)
@@ -22,20 +23,6 @@ main_url = 'https://myket.ir/video/animation'
 webpage = read_html(url)
 ```
 
-```{r}
-# a function to scrape animatation page
-get_anime_data <- function(url) {
-  # fetch webpage
-  # create an empty list
-  # for feature in expected tags
-      # create a list item with feature name
-      # scrape that feature
-      # assign list item with scraped value
-  # retrun a named list
-}
-
-```
-
 ### doing an example run
 
 ```{r}
@@ -43,9 +30,59 @@ example_url <- 'https://myket.ir/video/v-U5ZS7UJ6LZ/snoopy-presents-welcome-home
 
 webpage <- read_html(example_url)
 
-cat(webpage)
+# webpage %>%
+  # html_elements('FEATURE TAG SELECTOR') %>%
+  # html_attr('ATTRIBUTE WITH NEEDED VALUE') -> feature_value
+```
 
-webpage %>%
-  html_elements('.class') %>%
-  cat()
+Each feature, is scraped from an html tag. in a specific attribute. That means for each feature we need to know how to select its tag, and which one its attributes to fetch.
+We collect data for each feature in a dataframe. 
+
+```{r}
+# features <- data.frame('feature_name', 'selector', 'attr')
+
+scrape <- function(webpage, feature_selector, feature_attr) {
+    # webpage %>%
+        # html_elements('FEATURE TAG SELECTOR') %>%
+        # html_attr('ATTRIBUTE WITH NEEDED VALUE') -> feature_value
+    # return(feature_value)
+}
+
+# a function to scrape animatation page
+get_anime_data <- function(url, features) {
+  # fetch webpage
+  # create an empty list
+  # for feature in features
+      # create a list item with feature_name
+      # scrape that feature
+      # assign list item with scraped_value
+  # retrun a named list
+}
+
+```
+
+
+Now we need to get to all animation urls. We must scroll through "All videos" page by page. 
+
+```{r}
+
+get_anime_urls <- function(main_url) {
+  # for page in pages
+    # get all tags with anime url
+    # get anime data
+}
+
+```
+
+```{r}
+
+create_anime_data <- function(anime_urls, features){
+  # empty df
+  for(url in anime_urls){
+    row = get_anime_data(url, features)
+    # concat(df, row)
+  }
+}
+
+
 ```
