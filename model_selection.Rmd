@@ -11,6 +11,103 @@ knitr::opts_chunk$set(echo = TRUE)
 
 
 ## Exploratory Data Analaysis
+```{r}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(corrplot)
+library(gridExtra)
+library(tidyverse)
+library(reshape2)
+library(moments)
+```
+
+```{r}
+file_path <- "C:/Users/SAM-Tech/Desktop/ISL/clean_data.csv"  
+df <- read.csv(file_path, stringsAsFactors = TRUE)  
+```
+
+```{r}
+summary_stats <- summary(df)
+print(summary_stats)
+```
+
+Histograms for key numerical variables
+```{r}
+num_cols <- c("IMDB_Link", "Amtiaz", "Number_People", "Total_Episodes")
+
+par(mfrow=c(2,2)) 
+for (col in num_cols) {
+  hist(df[[col]], main=paste("Distribution of", col), col="skyblue", border="black")
+}
+```
+
+Correlation heatmap
+```{r}
+num_df <- df %>% select_if(is.numeric)
+corr_matrix <- cor(num_df, use="complete.obs")
+
+corrplot(corr_matrix, method="color", col=colorRampPalette(c("blue", "white", "red"))(200),
+         tl.cex=0.35, tl.col="black", title="Correlation Heatmap")
+```
+
+Bar chart for Categorical Features, Country distribution
+```{r}
+ggplot(df, aes(x=Country)) +
+  geom_bar(fill="skyblue", color="black") +
+  theme(axis.text.x = element_text(angle=45, hjust=1)) +
+  labs(title="Distribution of Movies by Country", x="Country", y="Count")
+```
+
+Bar chart for Rade distribution
+```{r}
+ggplot(df, aes(x=Rade)) +
+  geom_bar(fill="orange", color="black") +
+  theme(axis.text.x = element_text(angle=45, hjust=1)) +
+  labs(title="Distribution of Movies by Rade", x="Rade", y="Count")
+```
+
+Outlier detection using boxplots
+```{r}
+numeric_features <- c("IMDB_Link", "Amtiaz", "Number_People", "Year", "Total_Episodes")
+df_long <- df %>% select(all_of(numeric_features)) %>% pivot_longer(everything(), names_to="Feature", values_to="Value")
+#df_melted <- melt(df, measure.vars = num_features)
+
+ggplot(df_long, aes(x=Feature, y=Value)) +
+  geom_boxplot(fill="lightblue", color="black") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle=45, hjust=1)) +
+  labs(title="Boxplots of Key Numerical Features", x="Feature", y="Value")
+```
+
+Checking for Skewness and Distribution
+```{r}
+for (col in num_cols) {
+  cat("Skewness of", col, ":", skewness(df[[col]], na.rm = TRUE), "\n")
+}
+```
+Data Overview:
+The dataset contains 638 rows and 61 columns.
+There are both numerical and categorical features.
+Columns like URL, Name, and Rade are categorical, while others like IMDB_Link, Amtiaz, and Number_People are numerical.
+The dataset has no missing values after preprocessing.
+
+Numerical Features:
+IMDB_Link has values ranging from 2.1 to 9.3, with a mean of 6.84.
+Amtiaz ranges from 17 to 100, with a mean of 84.6.
+Number_People has high variance, ranging from 1,000 to 998,000.
+Year values range from 1940 to 2025, with most data points concentrated in recent years.
+Some numerical columns (like Total_Episodes) have skewed distributions, which might affect modeling.
+
+Categorical Features:
+Country and Rade should be analyzed further with frequency counts.
+Many binary genre columns (e.g., Romance, SciFi, Anime) are mostly 0s, meaning most movies don't belong to these genres.
+
+Missing Values:
+No missing values are present after cleaning.
+
+Correlation Analysis:
+Strong correlations exist between IMDB_Link, Amtiaz, and Number_People, indicating possible relationships worth exploring in modeling.
 
 ## Feature Selection
 
