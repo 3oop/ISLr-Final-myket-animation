@@ -200,12 +200,10 @@ library(dplyr)
 
 ```{r}
 data = 'clean_data.csv'
-df <- read.csv(data)
+df <- read.csv(data, stringsAsFactors = TRUE)
 ```
 
 ```{r}
-file_path <- "clean_data.csv"  
-df <- read.csv(file_path, stringsAsFactors = TRUE)
 # Convert columns 
 df$Country <- as.factor(df$Country)
 df$Rade <- as.factor(df$Rade)
