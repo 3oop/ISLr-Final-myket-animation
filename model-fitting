@@ -1,24 +1,98 @@
-#SVM
-
+# random forest
 ```{r}
-library(e1071)
+library(randomForest)
+library(tidyverse)
 library(caret)
 ```
 
 ```{r}
 data = 'clean_data.csv'
-
 df <- read.csv(data)
 
 # Convert columns 
 df$Country <- as.factor(df$Country)
 df$Rade <- as.factor(df$Rade)
 df$Year <- as.numeric(df$Year)
+df$Amtiaz <- as.numeric(df$Amtiaz)
+df$IMDB_Link <- as.numeric(df$IMDB_Link)
+# Convert all other binary variables to factor
+#binary_vars <- setdiff(names(df), c("Country", "Rade", "Year", "Amtiaz", "IMDB_Link"))
+#df[binary_vars] <- lapply(df[binary_vars], as.factor)
+```
+
+```{r}
+set.seed(123)
+train_index <- sample(1:nrow(df), size = floor(0.8 * nrow(df)), replace = FALSE)
+train_data <- df[train_index, ]
+test_data <- df[-train_index, ]
+```
+
+```{r}
+target <- "Amtiaz"
+predictors <- setdiff(names(df), target)
+```
+
+```{r}
+rf_model <- randomForest(Amtiaz ~ ., data = train_data, ntree = 100, mtry = 3, importance = TRUE)
+print(rf_model)
+```
+
+```{r}
+predictions <- predict(rf_model, test_data)
+head(predictions)
+
+# For regression tasks, Mean Squared Error (MSE)
+mse <- mean((predictions - test_data$Amtiaz)^2)
+print(paste("Mean Squared Error:", mse))
+```
+
+```{r}
+tuned_rf <- tuneRF(train_data[-which(names(train_data) == "Amtiaz")], train_data$Amtiaz, stepFactor = 1.5, improve = 0.01, ntreeTry = 100)
+print(tuned_rf)
+```
+
+```{r}
+importance(rf_model)
+varImpPlot(rf_model)
+```
+
+```{r}
+rsq <- 1 - sum((predictions - test_data$Amtiaz)^2) / sum((mean(test_data$Amtiaz) - test_data$Amtiaz)^2)
+print(paste("R-squared:", rsq))
+```
+
+
+
+
+
+
+#SVR
+
+```{r}
+library(e1071)
+library(caret)
+library(dplyr)
+```
+
+```{r}
+data = 'clean_data.csv'
+df <- read.csv(data, stringsAsFactors = TRUE)
+```
+
+```{r}
+# Convert columns 
+df$Country <- as.factor(df$Country)
+df$Rade <- as.factor(df$Rade)
+df$Amtiaz <- as.numeric(df$Amtiaz)
+df$Year <- as.numeric(df$Year)
+df$IMDB_Link <- as.numeric(df$IMDB_Link)
+# Convert categorical variables to dummy variables
+df <- dummyVars(~ ., data = df) %>% predict(df) %>% as.data.frame()
 ```
 
 Split the data into features and target
 ```{r}
-target <- 'Amtiaz'
+target <- "Amtiaz"
 predictors <- setdiff(names(df), target)
 
 # or
@@ -29,106 +103,46 @@ predictors <- setdiff(names(df), target)
 train,test
 ```{r}
 set.seed(123)
-train_index <- sample(1:nrow(data), 0.8 * nrow(data))
-train_data <- data[train_index, ]
-test_data <- data[-train_index, ]
+train_index <- sample(1:nrow(df), size = floor(0.8 * nrow(df)), replace = FALSE)
+train_data <- df[train_index, ]
+test_data <- df[-train_index, ]
+
+# Scale numerical features
+preproc <- preProcess(train_data[, predictors], method = c("center", "scale"))
+train_data_scaled <- predict(preproc, train_data)
+test_data_scaled <- predict(preproc, test_data)
+
+train_data_scaled$Amtiaz <- train_data$Amtiaz
+test_data_scaled$Amtiaz <- test_data$Amtiaz
 ```
 
 ```{r}
-svm_model <- svm(Amtiaz ~ ., data = train_data, kernel = "radial", cost = 1, gamma = 0.1)
+svr_model <- svm(Amtiaz ~ ., data = train_data_scaled, kernel = "radial", cost = 1, gamma = 0.1)
 
-plot(svm_model, train_data)
-summary(svm_model)
+plot(svr_model, train_data_scaled)
+summary(svr_model)
 ```
 
 ```{r}
-predictions <- predict(svm_model,test_data)
+predictions <- predict(svr_model,test_data_scaled)
 head(predictions)
 
-accuracy <- mean(predictions == test_data$Amtiaz)
-print(paste("Accuracy:", accuracy))
-
-confusionMatrix(predictions, test_data$Amtiaz)
-
-mse <- mean((predictions - test_data$Amtiaz)^2)
+mse <- mean((predictions - test_data_scaled$Amtiaz)^2)
 print(paste("Mean Squared Error:", mse))
+
+r2 <- cor(predictions, test_data_scaled$Amtiaz)^2
+print(paste("R-squared:", r2))
+
+# Plot actual vs predicted values
+plot(test_data_scaled$Amtiaz, predictions, 
+     xlab = "Actual Amtiaz", ylab = "Predicted Amtiaz",
+     main = "SVR Predictions vs. Actual Values",
+     col = "green", pch = 16)
+abline(0, 1, col = "red", lwd = 2)
 ```
 
 ```{r}
-tuned <- tune(svm, Amtiaz ~ ., data = train_data,kernel = "radial", ranges = list(cost =c(0.1, 1, 10), gamma = c(0.01, 0.1, 1)))
+tuned <- tune(svm, Amtiaz ~ ., data = train_data_scaled,kernel = "radial", ranges = list(cost =c(0.1, 1, 10), gamma = c(0.01, 0.1, 1)))
 best_model <- tuned$best.model
 summary(best_model)
-```
-
-
-
-
-
-
-# random forest
-
-```{r}
-library(randomForest)
-```
-
-```{r}
-data = 'clean_data.csv'
-
-df <- read.csv(data)
-
-# Convert columns 
-df$Country <- as.factor(df$Country)
-df$Rade <- as.factor(df$Rade)
-df$Year <- as.numeric(df$Year)
-```
-
-```{r}
-set.seed(123)
-train_index <- sample(1:nrow(data), 0.8 * nrow(data))
-train_data <- data[train_index, ]
-test_data <- data[-train_index, ]
-```
-
-```{r}
-features <- train_data[, -which(names(train_data) == "Amtiaz")]
-target <- train_data$Amtiaz
-```
-
-```{r}
-rf_model <- randomForest(Amtiaz ~ ., data = train_data, ntree = 100, mtry = 3, importance = TRUE)
-
-print(rf_model)
-```
-
-```{r}
-predictions <- predict(rf_model, test_data)
-head(predictions)
-
-# Calculate accuracy (for classification tasks)
-accuracy <- mean(predictions == test_data$Amtiaz)
-print(paste("Accuracy:", accuracy))
-
-# For regression tasks, use Mean Squared Error (MSE)
-mse <- mean((predictions - test_data$Amtiaz)^2)
-print(paste("Mean Squared Error:", mse))
-
-```
-
-```{r}
-tuned_rf <- tuneRF(features, target, stepFactor = 1.5, improve = 0.01, ntreeTry = 100)
-print(tuned_rf)
-```
-
-```{r}
-importance(rf_model)
-varImpPlot(rf_model)
-```
-
-```{r}
-# For classification
-confusionMatrix(predictions, test_data$Amtiaz)
-
-# For regression
-rsq <- 1 - sum((predictions - test_data$Amtiaz)^2) / sum((mean(test_data$Amtiaz) - test_data$Amtiaz)^2)
-print(paste("R-squared:", rsq))
 ```
