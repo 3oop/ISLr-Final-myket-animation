@@ -11,31 +11,209 @@ knitr::opts_chunk$set(echo = TRUE)
 
 
 ## Exploratory Data Analaysis
+```{r}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(corrplot)
+library(gridExtra)
+library(tidyverse)
+library(reshape2)
+library(moments)
+```
+
+```{r}
+file_path <- "C:/Users/SAM-Tech/Desktop/ISL/clean_data.csv"  
+df <- read.csv(file_path, stringsAsFactors = TRUE)  
+```
+
+```{r}
+summary_stats <- summary(df)
+print(summary_stats)
+```
+
+Histograms for key numerical variables
+```{r}
+num_cols <- c("IMDB_Link", "Amtiaz", "Number_People", "Total_Episodes")
+
+par(mfrow=c(2,2)) 
+for (col in num_cols) {
+  hist(df[[col]], main=paste("Distribution of", col), col="skyblue", border="black")
+}
+```
+
+Correlation heatmap
+```{r}
+num_df <- df %>% select_if(is.numeric)
+corr_matrix <- cor(num_df, use="complete.obs")
+
+corrplot(corr_matrix, method="color", col=colorRampPalette(c("blue", "white", "red"))(200),
+         tl.cex=0.35, tl.col="black", title="Correlation Heatmap")
+```
+
+Bar chart for Categorical Features, Country distribution
+```{r}
+ggplot(df, aes(x=Country)) +
+  geom_bar(fill="skyblue", color="black") +
+  theme(axis.text.x = element_text(angle=45, hjust=1)) +
+  labs(title="Distribution of Movies by Country", x="Country", y="Count")
+```
+
+Bar chart for Rade distribution
+```{r}
+ggplot(df, aes(x=Rade)) +
+  geom_bar(fill="orange", color="black") +
+  theme(axis.text.x = element_text(angle=45, hjust=1)) +
+  labs(title="Distribution of Movies by Rade", x="Rade", y="Count")
+```
+
+Outlier detection using boxplots
+```{r}
+numeric_features <- c("IMDB_Link", "Amtiaz", "Number_People", "Year", "Total_Episodes")
+df_long <- df %>% select(all_of(numeric_features)) %>% pivot_longer(everything(), names_to="Feature", values_to="Value")
+#df_melted <- melt(df, measure.vars = num_features)
+
+ggplot(df_long, aes(x=Feature, y=Value)) +
+  geom_boxplot(fill="lightblue", color="black") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle=45, hjust=1)) +
+  labs(title="Boxplots of Key Numerical Features", x="Feature", y="Value")
+```
+
+Checking for Skewness and Distribution
+```{r}
+for (col in num_cols) {
+  cat("Skewness of", col, ":", skewness(df[[col]], na.rm = TRUE), "\n")
+}
+```
+Data Overview:
+The dataset contains 638 rows and 61 columns.
+There are both numerical and categorical features.
+Columns like URL, Name, and Rade are categorical, while others like IMDB_Link, Amtiaz, and Number_People are numerical.
+The dataset has no missing values after preprocessing.
+
+Numerical Features:
+IMDB_Link has values ranging from 2.1 to 9.3, with a mean of 6.84.
+Amtiaz ranges from 17 to 100, with a mean of 84.6.
+Number_People has high variance, ranging from 1,000 to 998,000.
+Year values range from 1940 to 2025, with most data points concentrated in recent years.
+Some numerical columns (like Total_Episodes) have skewed distributions, which might affect modeling.
+
+Categorical Features:
+Country and Rade should be analyzed further with frequency counts.
+Many binary genre columns (e.g., Romance, SciFi, Anime) are mostly 0s, meaning most movies don't belong to these genres.
+
+Missing Values:
+No missing values are present after cleaning.
+
+Correlation Analysis:
+Strong correlations exist between IMDB_Link, Amtiaz, and Number_People, indicating possible relationships worth exploring in modeling.
 
 ## Feature Selection
 
 ## Model Map
-#SVM
 
+# random forest
 ```{r}
-library(e1071)
+library(randomForest)
+library(tidyverse)
 library(caret)
 ```
 
 ```{r}
 data = 'clean_data.csv'
-
 df <- read.csv(data)
 
 # Convert columns 
 df$Country <- as.factor(df$Country)
 df$Rade <- as.factor(df$Rade)
 df$Year <- as.numeric(df$Year)
+df$Amtiaz <- as.numeric(df$Amtiaz)
+df$IMDB_Link <- as.numeric(df$IMDB_Link)
+# Convert all other binary variables to factor
+#binary_vars <- setdiff(names(df), c("Country", "Rade", "Year", "Amtiaz", "IMDB_Link"))
+#df[binary_vars] <- lapply(df[binary_vars], as.factor)
+```
+
+```{r}
+set.seed(123)
+train_index <- sample(1:nrow(df), size = floor(0.8 * nrow(df)), replace = FALSE)
+train_data <- df[train_index, ]
+test_data <- df[-train_index, ]
+```
+
+```{r}
+target <- "Amtiaz"
+predictors <- setdiff(names(df), target)
+```
+
+```{r}
+rf_model <- randomForest(Amtiaz ~ ., data = train_data, ntree = 100, mtry = 3, importance = TRUE)
+print(rf_model)
+```
+
+```{r}
+predictions <- predict(rf_model, test_data)
+head(predictions)
+
+# For regression tasks, Mean Squared Error (MSE)
+mse <- mean((predictions - test_data$Amtiaz)^2)
+print(paste("Mean Squared Error:", mse))
+```
+
+```{r}
+tuned_rf <- tuneRF(train_data[-which(names(train_data) == "Amtiaz")], train_data$Amtiaz, stepFactor = 1.5, improve = 0.01, ntreeTry = 100)
+print(tuned_rf)
+```
+
+```{r}
+importance(rf_model)
+varImpPlot(rf_model)
+```
+
+```{r}
+rsq <- 1 - sum((predictions - test_data$Amtiaz)^2) / sum((mean(test_data$Amtiaz) - test_data$Amtiaz)^2)
+print(paste("R-squared:", rsq))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+#SVM
+
+```{r}
+library(e1071)
+library(caret)
+library(dplyr)
+```
+
+```{r}
+data = 'clean_data.csv'
+df <- read.csv(data, stringsAsFactors = TRUE)
+```
+
+```{r}
+# Convert columns 
+df$Country <- as.factor(df$Country)
+df$Rade <- as.factor(df$Rade)
+df$Amtiaz <- as.numeric(df$Amtiaz)
+df$Year <- as.numeric(df$Year)
+df$IMDB_Link <- as.numeric(df$IMDB_Link)
+# Convert categorical variables to dummy variables
+df <- dummyVars(~ ., data = df) %>% predict(df) %>% as.data.frame()
 ```
 
 Split the data into features and target
 ```{r}
-target <- 'Amtiaz'
+target <- "Amtiaz"
 predictors <- setdiff(names(df), target)
 
 # or
@@ -46,106 +224,46 @@ predictors <- setdiff(names(df), target)
 train,test
 ```{r}
 set.seed(123)
-train_index <- sample(1:nrow(data), 0.8 * nrow(data))
-train_data <- data[train_index, ]
-test_data <- data[-train_index, ]
+train_index <- sample(1:nrow(df), size = floor(0.8 * nrow(df)), replace = FALSE)
+train_data <- df[train_index, ]
+test_data <- df[-train_index, ]
+
+# Scale numerical features
+preproc <- preProcess(train_data[, predictors], method = c("center", "scale"))
+train_data_scaled <- predict(preproc, train_data)
+test_data_scaled <- predict(preproc, test_data)
+
+train_data_scaled$Amtiaz <- train_data$Amtiaz
+test_data_scaled$Amtiaz <- test_data$Amtiaz
 ```
 
 ```{r}
-svm_model <- svm(Amtiaz ~ ., data = train_data, kernel = "radial", cost = 1, gamma = 0.1)
+svr_model <- svm(Amtiaz ~ ., data = train_data_scaled, kernel = "radial", cost = 1, gamma = 0.1)
 
-plot(svm_model, train_data)
-summary(svm_model)
+plot(svr_model, train_data_scaled)
+summary(svr_model)
 ```
 
 ```{r}
-predictions <- predict(svm_model,test_data)
+predictions <- predict(svr_model,test_data_scaled)
 head(predictions)
 
-accuracy <- mean(predictions == test_data$Amtiaz)
-print(paste("Accuracy:", accuracy))
-
-confusionMatrix(predictions, test_data$Amtiaz)
-
-mse <- mean((predictions - test_data$Amtiaz)^2)
+mse <- mean((predictions - test_data_scaled$Amtiaz)^2)
 print(paste("Mean Squared Error:", mse))
+
+r2 <- cor(predictions, test_data_scaled$Amtiaz)^2
+print(paste("R-squared:", r2))
+
+# Plot actual vs predicted values
+plot(test_data_scaled$Amtiaz, predictions, 
+     xlab = "Actual Amtiaz", ylab = "Predicted Amtiaz",
+     main = "SVR Predictions vs. Actual Values",
+     col = "green", pch = 16)
+abline(0, 1, col = "red", lwd = 2)
 ```
 
 ```{r}
-tuned <- tune(svm, Amtiaz ~ ., data = train_data,kernel = "radial", ranges = list(cost =c(0.1, 1, 10), gamma = c(0.01, 0.1, 1)))
+tuned <- tune(svm, Amtiaz ~ ., data = train_data_scaled,kernel = "radial", ranges = list(cost =c(0.1, 1, 10), gamma = c(0.01, 0.1, 1)))
 best_model <- tuned$best.model
 summary(best_model)
-```
-
-
-
-
-
-
-# random forest
-
-```{r}
-library(randomForest)
-```
-
-```{r}
-data = 'clean_data.csv'
-
-df <- read.csv(data)
-
-# Convert columns 
-df$Country <- as.factor(df$Country)
-df$Rade <- as.factor(df$Rade)
-df$Year <- as.numeric(df$Year)
-```
-
-```{r}
-set.seed(123)
-train_index <- sample(1:nrow(data), 0.8 * nrow(data))
-train_data <- data[train_index, ]
-test_data <- data[-train_index, ]
-```
-
-```{r}
-features <- train_data[, -which(names(train_data) == "Amtiaz")]
-target <- train_data$Amtiaz
-```
-
-```{r}
-rf_model <- randomForest(Amtiaz ~ ., data = train_data, ntree = 100, mtry = 3, importance = TRUE)
-
-print(rf_model)
-```
-
-```{r}
-predictions <- predict(rf_model, test_data)
-head(predictions)
-
-# Calculate accuracy (for classification tasks)
-accuracy <- mean(predictions == test_data$Amtiaz)
-print(paste("Accuracy:", accuracy))
-
-# For regression tasks, use Mean Squared Error (MSE)
-mse <- mean((predictions - test_data$Amtiaz)^2)
-print(paste("Mean Squared Error:", mse))
-
-```
-
-```{r}
-tuned_rf <- tuneRF(features, target, stepFactor = 1.5, improve = 0.01, ntreeTry = 100)
-print(tuned_rf)
-```
-
-```{r}
-importance(rf_model)
-varImpPlot(rf_model)
-```
-
-```{r}
-# For classification
-confusionMatrix(predictions, test_data$Amtiaz)
-
-# For regression
-rsq <- 1 - sum((predictions - test_data$Amtiaz)^2) / sum((mean(test_data$Amtiaz) - test_data$Amtiaz)^2)
-print(paste("R-squared:", rsq))
 ```
