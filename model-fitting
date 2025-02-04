@@ -6,17 +6,14 @@ library(caret)
 ```
 
 ```{r}
-main_url <- 'https://myket.ir/video/animation'
-
-webpage <- read_html(main_url)
-
-data = 'animation_movie_features-3.csv'
+data = 'clean_data.csv'
 
 df <- read.csv(data)
 
 # Convert columns 
 df$Country <- as.factor(df$Country)
 df$Rade <- as.factor(df$Rade)
+df$Year <- as.numeric(df$Year)
 ```
 
 Split the data into features and target
@@ -75,14 +72,14 @@ library(randomForest)
 ```
 
 ```{r}
-main_url <-'https://myket.ir/video/animation'
-webpage <- read_html(main_url)
-data = 'animation_movie_features-3.csv'
+data = 'clean_data.csv'
+
 df <- read.csv(data)
 
 # Convert columns 
 df$Country <- as.factor(df$Country)
 df$Rade <- as.factor(df$Rade)
+df$Year <- as.numeric(df$Year)
 ```
 
 ```{r}
