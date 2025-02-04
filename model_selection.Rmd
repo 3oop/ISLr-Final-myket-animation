@@ -112,8 +112,8 @@ Strong correlations exist between IMDB_Link, Amtiaz, and Number_People, indicati
 ## Feature Selection
 
 ## Model Map
-# random forest
 
+# random forest
 ```{r}
 library(randomForest)
 library(tidyverse)
@@ -131,25 +131,24 @@ df$Year <- as.numeric(df$Year)
 df$Amtiaz <- as.numeric(df$Amtiaz)
 df$IMDB_Link <- as.numeric(df$IMDB_Link)
 # Convert all other binary variables to factor
-binary_vars <- setdiff(names(df), c("Country", "Rade", "Year", "Amtiaz", "IMDB_Link"))
-df[binary_vars] <- lapply(df[binary_vars], as.factor)
+#binary_vars <- setdiff(names(df), c("Country", "Rade", "Year", "Amtiaz", "IMDB_Link"))
+#df[binary_vars] <- lapply(df[binary_vars], as.factor)
 ```
 
 ```{r}
 set.seed(123)
-train_index <- sample(1:nrow(data), 0.8 * nrow(df))
+train_index <- sample(1:nrow(df), size = floor(0.8 * nrow(df)), replace = FALSE)
 train_data <- df[train_index, ]
 test_data <- df[-train_index, ]
 ```
 
 ```{r}
-features <- train_data[, -which(names(train_data) == "Amtiaz")]
-target <- train_data$Amtiaz
+target <- "Amtiaz"
+predictors <- setdiff(names(df), target)
 ```
 
 ```{r}
 rf_model <- randomForest(Amtiaz ~ ., data = train_data, ntree = 100, mtry = 3, importance = TRUE)
-
 print(rf_model)
 ```
 
@@ -160,7 +159,6 @@ head(predictions)
 # For regression tasks, Mean Squared Error (MSE)
 mse <- mean((predictions - test_data$Amtiaz)^2)
 print(paste("Mean Squared Error:", mse))
-
 ```
 
 ```{r}
@@ -174,7 +172,6 @@ varImpPlot(rf_model)
 ```
 
 ```{r}
-# For regression
 rsq <- 1 - sum((predictions - test_data$Amtiaz)^2) / sum((mean(test_data$Amtiaz) - test_data$Amtiaz)^2)
 print(paste("R-squared:", rsq))
 ```
@@ -208,6 +205,8 @@ df <- read.csv(data, stringsAsFactors = TRUE)
 df$Country <- as.factor(df$Country)
 df$Rade <- as.factor(df$Rade)
 df$Amtiaz <- as.numeric(df$Amtiaz)
+df$Year <- as.numeric(df$Year)
+df$IMDB_Link <- as.numeric(df$IMDB_Link)
 # Convert categorical variables to dummy variables
 df <- dummyVars(~ ., data = df) %>% predict(df) %>% as.data.frame()
 ```
