@@ -1,0 +1,556 @@
+---
+title: "amar_Data_collection"
+author: "luka"
+date: "2025-02-04"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+ابتدا تمام لینک های انیمیشن را جمع اوری می کنیم
+
+کتابخانه های لازم را فراخوانی می کنیم
+
+```{r}
+# Load required libraries
+library(rvest)
+library(tidyverse)
+library(httr)
+library(xml2)
+library(RSelenium)
+```
+
+در ابتدا لینک انیمیشن هایی رو وارد می کنیم که صفحه پیچ انها متحرک نیست
+
+```{r}
+extract_links <- function(url) {
+  tryCatch({
+    webpage <- read_html(url)
+    links <- webpage %>%
+      html_nodes("a") %>%
+      html_attr("href") %>%
+      .[grepl("/video/v-", .)]
+    links <- paste0("https://myket.ir", links)
+    next_page <- webpage %>%
+      html_nodes("a.pagination__next") %>%
+      html_attr("href")
+    next_page <- ifelse(length(next_page) > 0, paste0("https://myket.ir", next_page), NA)
+    return(list(links = links, next_page = next_page))
+  }, error = function(e) {
+    cat("Error:", e$message, "\n")
+    return(list(links = character(0), next_page = NA))
+  })
+}
+
+# تابع برای پیمایش صفحات و استخراج تمامی لینک‌های انیمیشن‌ها
+get_all_links <- function(start_url) {
+  all_links <- c()
+  next_page <- start_url
+  while (!is.na(next_page) && length(next_page) > 0) {
+    result <- extract_links(next_page)
+    all_links <- c(all_links, result$links)
+    next_page <- result$next_page
+    Sys.sleep(2) # اضافه کردن تاخیر برای جلوگیری از مشکلات اتصال
+  }
+  all_links <- unique(all_links)  # حذف لینک‌های تکراری
+  return(all_links)
+}
+
+# URLهای صفحات مختلف
+urls <- c(
+  "https://myket.ir/video/animation",
+  "https://myket.ir/video/list/sponge-bob-square-pants",
+  "https://myket.ir/video/list/tales-of-ladybug",
+  "https://myket.ir/video/list/minions",
+  "https://myket.ir/video/list/ben-10",
+  "https://myket.ir/video/list/paw-patrol",
+  "https://myket.ir/video/list/kung-fu-panda",
+  "https://myket.ir/video/list/academy-award-for-best-animated-feature-film"
+)
+
+# استخراج لینک‌ها از تمامی URLها با پیمایش بین صفحات
+all_links <- lapply(urls, get_all_links) %>% unlist() %>% unique()
+
+# نمایش لینک‌های انیمیشن‌ها
+print(all_links)
+
+```
+
+حالا میرسیم به صفحات متحرک
+
+برای صفحات متحرک از کد پایتون استفاده می کنیم و  لینک های هر صفحه در یک فایل سی اس وی میریزیم
+
+حالا اون فایلهای رو فراخوانی می کنیم
+
+```{r}
+library(readr)
+animation_links <- read_csv("C:/Users/USER/Desktop/animation_links.csv")
+animation_links2 <- read_csv("C:/Users/USER/Desktop/animation_links2.csv")
+animation_links3 <- read_csv("C:/Users/USER/Desktop/animation_links3.csv")
+animation_links4 <- read_csv("C:/Users/USER/Desktop/animation_links4.csv")
+animation_links5 <- read_csv("C:/Users/USER/Desktop/animation_links5.csv")
+animation_links6 <- read_csv("C:/Users/USER/Desktop/animation_links6.csv")
+animation_links7 <- read_csv("C:/Users/USER/Desktop/animation_links7.csv")
+animation_links8 <- read_csv("C:/Users/USER/Desktop/animation_links8.csv")
+animation_links9 <- read_csv("C:/Users/USER/Desktop/animation_links9.csv")
+```
+
+حالا تمیزکاری و تجمیع لینک ها
+
+```{r}
+all_animation_links <-bind_rows(animation_links, animation_links2,animation_links3,animation_links4, animation_links5,animation_links6,animation_links7, animation_links8,animation_links9)
+all_animation_links_character <- unlist(all_animation_links)
+all_animation_links<- c(all_links, all_animation_links_character)
+all_animation_links<-gsub("https://myket.irhttps://myket.ir", "https://myket.ir", all_animation_links)
+all_animation_links <- unique(all_animation_links)
+```
+
+و در نهایت
+
+```{r}
+library(rvest)
+library(readr)
+library(stringr)
+# تابع برای استخراج تگ ها از یک لینک خاص
+extract_tags <- function(url) {
+    webpage <- read_html(url)
+    
+    tags <- sapply(1:30, function(i) {
+        tag <- webpage %>%
+            html_elements(paste0("#movie-info-wrapper > div.tag-wrapper > a:nth-child(", i, ")")) %>%
+            html_text()
+        if (length(tag) == 0) {
+            return(NA)
+        }
+        return(tag)
+    })
+    
+    tags <- tags[!is.na(tags)]
+    return(tags)
+}
+
+# تابع برای بررسی وجود بخش های مختلف در انیمیشن
+check_section <- function(filtered_sosy, keyword) {
+    results <- integer(length(filtered_sosy))
+    for (i in 1:length(filtered_sosy)) {
+        if (grepl(keyword, filtered_sosy[[i]])) {
+            results[i] <- 1
+        } else {
+            results[i] <- 0
+        }
+    }
+    return(sum(results))
+}
+
+# تابع برای شمارش تعداد کلمات
+count_words <- function(text) {
+    return(length(unlist(strsplit(text, "\\s+"))))
+}
+
+# تابع برای استخراج ویژگی ها از یک لینک خاص
+extract_movie_features <- function(url) {
+    webpage <- read_html(url)
+    
+    # استخراج لینک IMDb
+    imdb_link <- tryCatch({
+        webpage %>%
+            html_elements("#movie-info-wrapper > div.movie-highlight-info > div.movie-imdb-wrapper > div.imdb-rate") %>%
+            html_text()
+    }, error = function(e) NA)
+    
+    if (length(imdb_link) == 0) {
+        imdb_link <- NA
+    }
+    
+    # استخراج امتیاز
+    amtiaz <- tryCatch({
+        webpage %>%
+            html_elements("#movie-info-wrapper > div.movie-highlight-info > div.movie-review-wrapper > div.review-rate") %>%
+            html_text()
+    }, error = function(e) NA)
+    
+    if (length(amtiaz) == 0) {
+        amtiaz <- NA
+    }
+    
+    # استخراج تعداد آرا
+    number_people <- tryCatch({
+        webpage %>%
+            html_elements("#movie-info-wrapper > div.movie-highlight-info > div.movie-review-wrapper > div.review-count") %>%
+            html_text()
+    }, error = function(e) NA)
+    
+    if (length(number_people) == 0) {
+        number_people <- NA
+    }
+    
+    # استخراج کشور و سال
+    yearandcountry <- tryCatch({
+        webpage %>%
+            html_elements("#movie-info-wrapper > div.movie-summary > span:nth-child(1)") %>%
+            html_text()
+    }, error = function(e) NA)
+    
+    if (length(yearandcountry) == 0) {
+        yearandcountry <- NA
+    }
+    
+    country <- sub("سال .*", "", yearandcountry)
+    country <- sub("ساخت ", "", country)  # حذف کلمه "ساخت"
+    
+    year <- sub(".*سال ", "", yearandcountry)
+    
+    if (length(country) == 0) {
+        country <- NA
+    }
+    
+    if (length(year) == 0) {
+        year <- NA
+    }
+    
+    # استخراج رده سنی
+    rade <- tryCatch({
+        webpage %>%
+            html_elements("#movie-info-wrapper > div.movie-summary > span:nth-child(2)") %>%
+            html_text()
+    }, error = function(e) NA)
+    
+    if (length(rade) == 0) {
+        rade <- NA
+    }
+    
+    # استخراج نام انیمیشن
+    name <- tryCatch({
+        webpage %>%
+            html_elements("#movie-description > h2:nth-child(3)") %>%
+            html_text()
+    }, error = function(e) NA)
+    
+    if (length(name) == 0) {
+        name <- NA
+    } else {
+        name <- sub("داستان ", "", name)  # حذف کلمه "داستان"
+    }
+    
+    # استخراج تگ ها و ایجاد ستون های مربوطه
+    tags <- extract_tags(url)
+    tag_columns <- data.frame(
+        Series = ifelse("سریال" %in% tags, 1, 0),
+        Animation = ifelse("انیمیشن" %in% tags, 1, 0),
+        Western = ifelse("وسترن" %in% tags, 1, 0),
+        Adventure = ifelse("ماجراجویی" %in% tags, 1, 0),
+        Comedy = ifelse("کمدی" %in% tags, 1, 0),
+        Family = ifelse("خانوادگی" %in% tags, 1, 0),
+        Fantasy = ifelse("فانتزی" %in% tags, 1, 0),
+        Mystery = ifelse("معمایی" %in% tags, 1, 0),
+        Action = ifelse("اکشن" %in% tags, 1, 0),
+        Romance = ifelse("عاشقانه" %in% tags, 1, 0),
+        Drama = ifelse("درام" %in% tags, 1, 0),
+        SciFi = ifelse("علمی‌تخیلی" %in% tags, 1, 0),
+        ShortFilm = ifelse("فیلم‌کوتاه" %in% tags, 1, 0),
+        Crime = ifelse("جنایی" %in% tags, 1, 0),
+        Musical = ifelse("موزیکال" %in% tags, 1, 0),
+        Korean = ifelse("کره‌ای" %in% tags, 1, 0),
+        Thriller = ifelse("هیجان‌انگیز" %in% tags, 1, 0),
+        Anime = ifelse("انیمه" %in% tags, 1, 0),
+        Music = ifelse("موسیقی" %in% tags, 1, 0),
+        stringsAsFactors = FALSE
+    )
+    
+    # استخراج تعداد فصل‌ها و قسمت‌ها
+    text <- webpage %>%
+        html_elements("#main-Content > div:nth-child(1) > section.left-section") %>%
+        html_text()
+    
+    seasons <- str_extract_all(text, "فصل \\d+")
+    num_seasons <- length(unique(seasons[[1]]))
+    
+    episodes_per_season <- str_match_all(text, "فصل \\d+ - قسمت \\d+")
+    episodes_vector <- as.vector(episodes_per_season[[1]])
+    unique_episodes <- unique(episodes_vector)
+    num_episodes <- table(str_extract(unique_episodes, "فصل \\d+"))
+    
+    total_episodes <- sum(num_episodes)
+    
+    # لیستی برای ذخیره نتایج
+    sosx <- list()
+    
+    # حلقه برای استخراج متن از هر nth-child
+    for (i in 1:40) {
+        selector <- paste0("#movie-description > p:nth-child(", i, ")")
+        text <- webpage %>%
+            html_elements(selector) %>%
+            html_text()
+        sosx[[i]] <- text
+    }
+    
+    filtered_sosx <- sosx[lapply(sosx, length) > 0]
+    
+    sosy <- list()
+    
+    # حلقه برای استخراج متن از هر nth-child
+    for (i in 1:40) {
+        selector <- paste0("#movie-description > h2:nth-child(", i, ")")
+        text <- webpage %>%
+            html_elements(selector) %>%
+            html_text()
+        sosy[[i]] <- text
+    }
+    
+    # حذف موارد character(0) از لیست
+    filtered_sosy <- sosy[lapply(sosy, length) > 0]
+    
+    # بررسی وجود بخش‌های مختلف در انیمیشن
+    Publication <- check_section(filtered_sosy, "انتشار")
+    voiceactors <- check_section(filtered_sosy, "صدا")
+    Review <- check_section(filtered_sosy, "بررسی")
+    tips <- check_section(filtered_sosy, "نکات")
+    end <- check_section(filtered_sosy, "پایانی")
+    Description <- check_section(filtered_sosy, "چیست")
+    characters <- check_section(filtered_sosy, "شخصیت")
+    Informativemessages <- check_section(filtered_sosy, "آموزنده")
+    positiveandnegative <- check_section(filtered_sosy, "مثبت")
+    summarystory <- check_section(filtered_sosy, "خلاصه")
+    Screening <- check_section(filtered_sosy, "اکران")
+    critics <- check_section(filtered_sosy, "منتقدان")
+    conclusion <- check_section(filtered_sosy, "نتیجه")
+    introduction <- check_section(filtered_sosy, "معرفی")
+    
+    # کل توضیحات
+    total_words <- sum(unlist(lapply(sosx, function(section) {
+        count_words(section)
+    })))
+    
+    # تعداد عناوین
+    num_titles <- length(filtered_sosy)
+    
+    # عنوان دوبله دارد یا ندارد
+    onvan <- webpage %>%
+        html_elements("#movie-info-wrapper > h1") %>%
+        html_text()
+    is_doblele <- ifelse(any(grepl("دوبله", onvan)), 1, 0)
+    
+    # تعریف کلمات مورد نظر
+    target_words <- c("بهترین", "افتخار", "جذاب", "نامزد", "موفقیت", "لذت")
+
+# شمارش تعداد تکرار هر کلمه در متن‌های filtered_sosx
+word_counts <- sapply(target_words, function(word) {
+    sum(sapply(filtered_sosx, function(text) {
+        length(gregexpr(word, text)[[1]][gregexpr(word, text)[[1]] > 0])
+    }))
+})
+
+total_target_words <- sum(word_counts)
+
+# استخراج موقعیت ها
+positions <- c()
+
+# جستجو در عناصر filtered_sosy و پیدا کردن موقعیت آن‌ها در sosy
+for (i in seq_along(filtered_sosy)) {
+    position <- which(sapply(sosy, function(x) identical(filtered_sosy[[i]], x)))
+    positions <- c(positions, position)
+}
+
+# حذف مقادیر تکراری
+positions <- unique(positions)
+
+# تابع برای استخراج و شمارش کلمات بر اساس کلمات کلیدی مختلف
+extract_and_count_words <- function(filtered_sosy, sosy, positions, keyword) {
+    position_indices <- which(sapply(filtered_sosy, function(x) any(grepl(keyword, x))))
+    
+    if (length(position_indices) == 0) {
+        return(0)
+    }
+    
+    result_strings <- c()
+    
+    for (i in seq_along(position_indices)) {
+        start_pos <- positions[position_indices[i]]
+        if (i < length(position_indices)) {
+            end_pos <- positions[position_indices[i + 1]]
+        } else if (position_indices[i] == length(positions)) {
+            end_pos <- positions[position_indices[i]] + 1
+        } else {
+            end_pos <- positions[position_indices[i] + 1]
+        }
+        
+        if (start_pos + 1 < end_pos) {
+            sequence_numbers <- (start_pos + 1):(end_pos - 1)
+        } else if (start_pos < end_pos) {
+            sequence_numbers <- start_pos + 1
+        } else {
+            sequence_numbers <- integer(0)
+        }
+        
+        if (length(sequence_numbers) > 0) {
+            result_strings <- c(result_strings, paste0("#movie-description > p:nth-child(", sequence_numbers, ")"))
+        }
+    }
+    
+    if (length(result_strings) == 1 && result_strings == "0") {
+        return(0)
+    }
+    
+    word_counts <- sapply(result_strings, function(selector) {
+        paragraph_text <- webpage %>%
+            html_elements(selector) %>%
+            html_text()
+        word_count <- strsplit(paragraph_text, "\\s+") %>%
+            unlist() %>%
+            length()
+        return(word_count)
+    })
+    
+    total_word_count <- sum(word_counts)
+    return(total_word_count)
+}
+
+# استخراج و شمارش کلمات برای بخش‌های مختلف
+about_words <- extract_and_count_words(filtered_sosy, sosy, positions, "درباره")
+story_words <- extract_and_count_words(filtered_sosy, sosy, positions, "داستان")
+release_date_words <- extract_and_count_words(filtered_sosy, sosy, positions, "انتشار")
+review_words <- extract_and_count_words(filtered_sosy, sosy, positions, "بررسی")
+final_words <- extract_and_count_words(filtered_sosy, sosy, positions, "پایانی")
+informative_words <- extract_and_count_words(filtered_sosy, sosy, positions, "آموزنده")
+positive_negative_words <- extract_and_count_words(filtered_sosy, sosy, positions, "مثبت")
+summary_words <- extract_and_count_words(filtered_sosy, sosy, positions, "خلاصه")
+screening_words <- extract_and_count_words(filtered_sosy, sosy, positions, "اکران")
+critics_words <- extract_and_count_words(filtered_sosy, sosy, positions, "منتقدان")
+conclusion_words <- extract_and_count_words(filtered_sosy, sosy, positions, "نتیجه")
+introduction_words <- extract_and_count_words(filtered_sosy, sosy, positions, "معرفی")
+voice_actor_words <- extract_and_count_words(filtered_sosy, sosy, positions, "صدا")
+
+# بازگرداندن ویژگی‌ها به صورت دیتا فریم
+return(data.frame(
+    URL = url,
+    Name = name,
+    IMDB_Link = imdb_link,
+    Amtiaz = amtiaz,
+    Number_People = number_people,
+    Country = country,
+    Year = year,
+    Rade = rade,
+    Num_Seasons = num_seasons,
+    Total_Episodes = total_episodes,
+    Publication = Publication,
+    VoiceActors = voiceactors,
+    Review = Review,
+    Tips = tips,
+    End = end,
+    Description = Description,
+    Characters = characters,
+    InformativeMessages = Informativemessages,
+    PositiveAndNegative = positiveandnegative,
+    SummaryStory = summarystory,
+    Screening = Screening,
+    Critics = critics,
+    Conclusion = conclusion,
+    Introduction = introduction,
+    Total_Words = total_words,
+    Num_Titles = num_titles,
+    Is_Doblele = is_doblele,
+    Total_Target_Words = total_target_words,
+    About_Words = about_words,
+    Story_Words = story_words,
+    Release_Date_Words = release_date_words,
+    Review_Words = review_words,
+    Final_Words = final_words,
+    Informative_Words = informative_words,
+    Positive_Negative_Words = positive_negative_words,
+    Summary_Words = summary_words,
+    Screening_Words = screening_words,
+    Critics_Words = critics_words,
+    Conclusion_Words = conclusion_words,
+    Introduction_Words = introduction_words,
+    Voice_Actor_Words = voice_actor_words,
+    tag_columns,
+    stringsAsFactors = FALSE
+))
+}
+
+# استفاده از تابع برای استخراج ویژگی‌ها از تمامی انیمیشن‌ها
+all_movie_features <- lapply(all_animation_links, function(url) {
+    features <- extract_movie_features(url)
+    if (length(features) == 0) {
+        features <- data.frame(
+            URL = url,
+            Name = NA,
+            IMDB_Link = NA,
+            Amtiaz = NA,
+            Number_People = NA,
+            Country = NA,
+            Year = NA,
+            Rade = NA,
+            Num_Seasons = NA,
+            Total_Episodes = NA,
+            Publication = NA,
+            VoiceActors = NA,
+            Review = NA,
+            Tips = NA,
+            End = NA,
+            Description = NA,
+            Characters = NA,
+            InformativeMessages = NA,
+            PositiveAndNegative = NA,
+            SummaryStory = NA,
+            Screening = NA,
+            Critics = NA,
+            Conclusion = NA,
+            Introduction = NA,
+            Total_Words = NA,
+            Num_Titles = NA,
+            Is_Doblele = NA,
+            Total_Target_Words = NA,
+            About_Words = NA,
+            Story_Words = NA,
+            Release_Date_Words = NA,
+            Review_Words = NA,
+            Final_Words = NA,
+            Informative_Words = NA,
+            Positive_Negative_Words = NA,
+            Summary_Words = NA,
+            Screening_Words = NA,
+            Critics_Words = NA,
+            Conclusion_Words = NA,
+            Introduction_Words = NA,
+            Voice_Actor_Words = NA,
+            Series = NA,
+            Animation = NA,
+            Western = NA,
+            Adventure = NA,
+            Comedy = NA,
+            Family = NA,
+            Fantasy = NA,
+            Mystery = NA,
+            Action = NA,
+            Romance = NA,
+            Drama = NA,
+            SciFi = NA,
+            ShortFilm = NA,
+            Crime = NA,
+            Musical = NA,
+            Korean = NA,
+            Thriller = NA,
+            Anime = NA,
+            Music = NA,
+            stringsAsFactors = FALSE
+        )
+    }
+    return(features)
+})
+
+# ایجاد دیتافریم با مقدار پیش فرض NA برای ویژگی های گمشده
+all_movie_features_df <- do.call(rbind, all_movie_features)
+
+# تعیین مسیر دسکتاپ برای ذخیره فایل CSV (برای ویندوز)
+desktop_path <- file.path(Sys.getenv("USERPROFILE"), "Desktop", "animation_movie_features.csv")
+
+# ذخیره اطلاعات در فایل CSV در دسکتاپ
+write_csv(all_movie_features_df, desktop_path)
+
+# نمایش پیام تایید
+print("اطلاعات با موفقیت در فایل CSV در دسکتاپ ذخیره شد.")
+```
+
