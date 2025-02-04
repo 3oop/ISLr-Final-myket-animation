@@ -112,6 +112,84 @@ Strong correlations exist between IMDB_Link, Amtiaz, and Number_People, indicati
 ## Feature Selection
 
 ## Model Map
+# random forest
+
+```{r}
+library(randomForest)
+library(tidyverse)
+library(caret)
+```
+
+```{r}
+data = 'clean_data.csv'
+df <- read.csv(data)
+
+# Convert columns 
+df$Country <- as.factor(df$Country)
+df$Rade <- as.factor(df$Rade)
+df$Year <- as.numeric(df$Year)
+df$Amtiaz <- as.numeric(df$Amtiaz)
+df$IMDB_Link <- as.numeric(df$IMDB_Link)
+# Convert all other binary variables to factor
+binary_vars <- setdiff(names(df), c("Country", "Rade", "Year", "Amtiaz", "IMDB_Link"))
+df[binary_vars] <- lapply(df[binary_vars], as.factor)
+```
+
+```{r}
+set.seed(123)
+train_index <- sample(1:nrow(data), 0.8 * nrow(df))
+train_data <- df[train_index, ]
+test_data <- df[-train_index, ]
+```
+
+```{r}
+features <- train_data[, -which(names(train_data) == "Amtiaz")]
+target <- train_data$Amtiaz
+```
+
+```{r}
+rf_model <- randomForest(Amtiaz ~ ., data = train_data, ntree = 100, mtry = 3, importance = TRUE)
+
+print(rf_model)
+```
+
+```{r}
+predictions <- predict(rf_model, test_data)
+head(predictions)
+
+# For regression tasks, Mean Squared Error (MSE)
+mse <- mean((predictions - test_data$Amtiaz)^2)
+print(paste("Mean Squared Error:", mse))
+
+```
+
+```{r}
+tuned_rf <- tuneRF(train_data[-which(names(train_data) == "Amtiaz")], train_data$Amtiaz, stepFactor = 1.5, improve = 0.01, ntreeTry = 100)
+print(tuned_rf)
+```
+
+```{r}
+importance(rf_model)
+varImpPlot(rf_model)
+```
+
+```{r}
+# For regression
+rsq <- 1 - sum((predictions - test_data$Amtiaz)^2) / sum((mean(test_data$Amtiaz) - test_data$Amtiaz)^2)
+print(paste("R-squared:", rsq))
+```
+
+
+
+
+
+
+
+
+
+
+
+
 #SVM
 
 ```{r}
@@ -172,77 +250,4 @@ print(paste("Mean Squared Error:", mse))
 tuned <- tune(svm, Amtiaz ~ ., data = train_data,kernel = "radial", ranges = list(cost =c(0.1, 1, 10), gamma = c(0.01, 0.1, 1)))
 best_model <- tuned$best.model
 summary(best_model)
-```
-
-
-
-
-
-
-# random forest
-
-```{r}
-library(randomForest)
-```
-
-```{r}
-data = 'clean_data.csv'
-
-df <- read.csv(data)
-
-# Convert columns 
-df$Country <- as.factor(df$Country)
-df$Rade <- as.factor(df$Rade)
-df$Year <- as.numeric(df$Year)
-```
-
-```{r}
-set.seed(123)
-train_index <- sample(1:nrow(data), 0.8 * nrow(data))
-train_data <- data[train_index, ]
-test_data <- data[-train_index, ]
-```
-
-```{r}
-features <- train_data[, -which(names(train_data) == "Amtiaz")]
-target <- train_data$Amtiaz
-```
-
-```{r}
-rf_model <- randomForest(Amtiaz ~ ., data = train_data, ntree = 100, mtry = 3, importance = TRUE)
-
-print(rf_model)
-```
-
-```{r}
-predictions <- predict(rf_model, test_data)
-head(predictions)
-
-# Calculate accuracy (for classification tasks)
-accuracy <- mean(predictions == test_data$Amtiaz)
-print(paste("Accuracy:", accuracy))
-
-# For regression tasks, use Mean Squared Error (MSE)
-mse <- mean((predictions - test_data$Amtiaz)^2)
-print(paste("Mean Squared Error:", mse))
-
-```
-
-```{r}
-tuned_rf <- tuneRF(features, target, stepFactor = 1.5, improve = 0.01, ntreeTry = 100)
-print(tuned_rf)
-```
-
-```{r}
-importance(rf_model)
-varImpPlot(rf_model)
-```
-
-```{r}
-# For classification
-confusionMatrix(predictions, test_data$Amtiaz)
-
-# For regression
-rsq <- 1 - sum((predictions - test_data$Amtiaz)^2) / sum((mean(test_data$Amtiaz) - test_data$Amtiaz)^2)
-print(paste("R-squared:", rsq))
 ```
