@@ -116,6 +116,61 @@ Correlation Analysis: Strong correlations exist between IMDB_Link, Amtiaz, and N
 
 ## Feature Selection
 
+```{r}
+data <- df
+# Load required libraries
+library(randomForest)
+
+# Remove the first two columns
+data <- data[, -c(1, 2)]
+data <- data[, -c(1, 2)]
+
+# Convert non-numeric columns to factors
+data[] <- lapply(data, function(x) if(is.character(x)) as.factor(x) else x)
+
+# Reduce the number of categories for large categorical predictors
+data[] <- lapply(data, function(x) if(is.factor(x) && nlevels(x) > 53) {
+  levels_to_keep <- names(sort(table(x), decreasing = TRUE)[1:53])
+  x <- factor(ifelse(x %in% levels_to_keep, as.character(x), "Other"))
+  return(x)
+} else return(x))
+
+# Define the target variable
+target <- data$Amtiaz
+
+# Remove the target variable column from the features
+features <- data[, !names(data) %in% 'Amtiaz']
+
+# Train the random forest model and calculate feature importance
+rf_model <- randomForest(features, target, importance = TRUE, na.action = na.omit)
+
+# Extract feature importance
+importance <- importance(rf_model)
+importance_df <- data.frame(Feature = rownames(importance), Importance = importance[, 1])
+
+# Sort features by importance
+importance_df <- importance_df[order(-importance_df$Importance), ]
+
+# Display important features
+print("Feature Importance:")
+print(importance_df)
+
+# Select the top n features (e.g., top 10 features)
+top_n <- 10
+top_features <- importance_df$Feature[1:top_n]
+
+# Create a new dataset with important features
+final_data <- data[, c(top_features, 'Amtiaz')]
+desktop_path <- file.path(Sys.getenv("USERPROFILE"), "Desktop", "final_data")
+
+# Save the data to a CSV file on the desktop
+write_csv(final_data, desktop_path)
+
+# Display confirmation message
+print("The data has been successfully saved to a CSV file on the desktop.")
+
+```
+
 ## Model Map
 
 # simple linear regression
