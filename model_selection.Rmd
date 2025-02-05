@@ -168,6 +168,90 @@ pred_lasso <- predict(lasso_model, s = best_lambda_lasso, newx = x_test)
 (mse <- mean((pred_lasso - y_test)^2))
 ```
 
+
+# GAM
+```{r}
+library(mgcv)
+library(caret)
+library(dplyr)
+library(ggplot2)
+```
+
+```{r}
+data = 'C:/Users/SAM-Tech/Desktop/ISL/clean_data.csv'
+df <- read.csv(data, stringsAsFactors = TRUE)
+
+df$Country <- factor(df$Country)
+df$Rade <- factor(df$Rade)
+df$Country <- factor(df$Country, levels = unique(df$Country))
+df$Rade <- factor(df$Rade, levels = unique(df$Rade))
+df$Year <- as.numeric(df$Year)
+df$Amtiaz <- as.numeric(df$Amtiaz)
+df$IMDB_Link <- as.numeric(df$IMDB_Link)
+## Identify binary variables and convert them to factors
+#binary_vars <- setdiff(names(df), c("Country", "Rade", "Year", "Amtiaz", "IMDB_Link"))
+#df[binary_vars] <- lapply(df[binary_vars], as.factor)
+```
+
+```{r}
+set.seed(123)
+train_index <- sample(1:nrow(df), size = floor(0.8 * nrow(df)), replace = FALSE)
+train_data <- df[train_index, ]
+test_data <- df[-train_index, ]
+
+# Align test set factor levels with training set
+test_data$Country <- factor(test_data$Country, levels = levels(train_data$Country))
+test_data$Rade <- factor(test_data$Rade, levels = levels(train_data$Rade))
+```
+
+```{r}
+gam_model <- gam(Amtiaz ~ s(Year) + s(IMDB_Link) + Country + Rade, data=train_data, method ="REML")
+
+summary(gam_model)
+```
+
+```{r}
+test_predictions <- predict(gam_model, newdata = test_data)
+
+# Calculate test MSE and R-squared
+mse_test <- mean((test_predictions - test_data$Amtiaz)^2)
+rsq_test <- 1 - sum((test_predictions - test_data$Amtiaz)^2) / sum((mean(test_data$Amtiaz) - test_data$Amtiaz)^2)
+
+
+train_predictions <- predict(gam_model, newdata = train_data)
+
+# Calculate training MSE and R-squared
+mse_train <- mean((train_predictions - train_data$Amtiaz)^2)
+rsq_train <- 1 - sum((train_predictions - train_data$Amtiaz)^2) / sum((mean(train_data$Amtiaz) - train_data$Amtiaz)^2)
+
+print(paste("Test Mean Squared Error:", mse_test))
+print(paste("Test R-squared:", rsq_test))
+print(paste("Train Mean Squared Error:", mse_train))
+print(paste("Train R-squared:", rsq_train))
+```
+
+```{r}
+plot(gam_model, pages = 1, shade = TRUE, col = "blue")
+
+par(mfrow = c(2, 2))
+gam.check(gam_model)
+```
+
+```{r}
+ata.frame(Actual = test_data$Amtiaz, Predicted = test_predictions), 
+       aes(x = Actual, y = Predicted)) +
+  geom_point(color = "blue") +
+  geom_abline(intercept = 0, slope = 1, col = "red", linetype = "dashed") +
+  labs(title = "GAM Predictions vs. Actual Values",
+       x = "Actual Amtiaz",
+       y = "Predicted Amtiaz") +
+  theme_minimal()
+```
+
+
+
+
+
 # random forest
 
 ```{r}
