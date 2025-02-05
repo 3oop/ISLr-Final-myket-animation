@@ -12,7 +12,7 @@ editor_options:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Exploratory Data Analaysis
+## Exploratory Data Analysis
 
 ```{r}
 library(ggplot2)
@@ -173,7 +173,7 @@ print("The data has been successfully saved to a CSV file on the desktop.")
 
 ## Model Map
 
-# simple linear regression
+### Simple linear regression
 
 ```{r}
 set.seed(1)
@@ -190,7 +190,7 @@ linear_regression_model <- lm(Amtiaz~., data = train_data)
 summary(linear_regression_model)$r.squared
 ```
 
-# ridge regression
+### Ridge regression
 
 ```{r}
 library(glmnet)
@@ -210,7 +210,7 @@ pred_ridge <- predict(ridge_model, s = best_lambda_ridge, newx = x_test)
 (mse <- mean((pred_ridge - y_test)^2))
 ```
 
-# lasso regression
+### Lasso regression
 
 ```{r}
 lasso_cv <- cv.glmnet(x_train, y_train, alpha = 1, lambda = 10^seq(4, -2, length = 100))
@@ -224,7 +224,7 @@ pred_lasso <- predict(lasso_model, s = best_lambda_lasso, newx = x_test)
 ```
 
 
-# GAM
+### GAM
 ```{r}
 library(mgcv)
 library(caret)
@@ -307,9 +307,7 @@ ata.frame(Actual = test_data$Amtiaz, Predicted = test_predictions),
 
 
 
-
-
-# random forest
+### Random forest
 
 ```{r}
 library(randomForest)
@@ -375,7 +373,7 @@ rsq <- 1 - sum((predictions - test_data$Amtiaz)^2) / sum((mean(test_data$Amtiaz)
 print(paste("R-squared:", rsq))
 ```
 
-# SVR
+### SVR
 
 ```{r}
 library(e1071)
@@ -458,7 +456,7 @@ best_model <- tuned$best.model
 summary(best_model)
 ```
 
-# RNN
+# Neural Network
 ```{r}
 library(keras3)
 RNN_model = keras_model_sequential() %>%
