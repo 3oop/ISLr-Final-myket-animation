@@ -1,0 +1,183 @@
+---
+title: "amaramtiazy"
+author: "luka"
+date: "2025-02-05"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(readr)
+clean_data <- read_csv("C:/Users/USER/Downloads/clean_data.csv")
+data<-clean_data
+```
+
+
+```{r}
+# Transfer required columns to new dataframe
+new_data <- data[, c("Name","Country", "Series", "Animation", "Western", "Adventure", "Comedy", "Family", "Fantasy", "Mystery", "Action", "Romance", "Drama", "SciFi", "ShortFilm", "Crime", "Musical", "Korean", "Thriller", "Anime", "Music")]
+
+# Display new dataframe
+print(new_data)
+
+
+```
+
+```{r}
+# Load required libraries
+library(klaR)
+library(dplyr)
+library(stringr)
+library(readr)
+
+# Extract columns excluding "Country" and "Name"
+features <- new_data[, !names(new_data) %in% c("Country", "Name")]
+
+# Apply K-Modes clustering
+set.seed(123)
+k <- 13  # Number of clusters
+kmodes_result <- kmodes(features, modes = k)
+
+# Add cluster information to the data
+new_data$Cluster <- kmodes_result$cluster
+
+
+
+
+```
+
+K-Prototypes
+
+```{r}
+#  load clustMixType library
+library(clustMixType)
+
+# Assume data contains your data
+# Select numeric and categorical columns
+numeric_columns <- c("IMDB_Link", "Amtiaz", "Number_People") # Replace with the names of numeric columns
+categorical_columns <- c("Series", "Animation", "Western", "Adventure", "Comedy", "Family", "Fantasy", "Mystery", "Action", "Romance", "Drama", "SciFi", "ShortFilm", "Crime", "Musical", "Korean", "Thriller", "Anime", "Music") # Replace with the names of categorical columns
+# Convert categorical variables to factors
+data[categorical_columns] <- lapply(data[categorical_columns], as.factor)
+
+# Check that categorical variables have been converted to factors
+str(data[categorical_columns])
+# Perform K-Prototypes
+set.seed(123)
+k <- 12  # Number of clusters
+kproto_result <- kproto(data[, c(numeric_columns, categorical_columns)], k = k)
+
+# Add cluster information to the data
+data$Cluster <- kproto_result$cluster
+
+# Display results
+print(data)
+
+
+```
+
+```{r}
+#Function to find similar animations within each cluster without checking for similar words
+find_similar_animations <- function(animation_name, cluster_data) {
+  similar_animations <- cluster_data$Name[cluster_data$Name != animation_name]
+  
+  if (length(similar_animations) > 12) {
+    similar_animations <- similar_animations[1:12]
+  } else if (length(similar_animations) < 12) {
+    similar_animations <- c(similar_animations, rep(NA, 12 - length(similar_animations)))
+  }
+  
+  return(similar_animations)
+}
+
+# Process for each animation in the list
+results <- list()
+
+for (i in 1:nrow(data)) {
+  animation_name <- data$Name[i]
+  cluster_id <- data$Cluster[i]
+  cluster_data <- data[data$Cluster == cluster_id, ]
+  similar_animations <- find_similar_animations(animation_name, cluster_data)
+  results[[animation_name]] <- similar_animations
+}
+
+#  Convert the results list to a dataframe
+results_df <- do.call(rbind, lapply(names(results), function(x) {
+  cbind(Animation = x, setNames(as.data.frame(t(results[[x]])), paste0("Similar_", 1:12)))
+}))
+desktop_path <- file.path(Sys.getenv("USERPROFILE"), "Desktop", "Similar")
+
+# Save the data to a CSV file on the desktop
+write_csv(results_df, desktop_path)
+
+# Display confirmation message
+print("The data has been successfully saved to a CSV file on the desktop.")
+
+```
+
+Gower’s Dissimilarity و PAM
+
+```{r}
+library(cluster)
+new2_data <- data[, c("Series", "Animation", "Western", "Adventure", "Comedy", "Family", "Fantasy", "Mystery", "Action", "Romance", "Drama", "SciFi", "ShortFilm", "Crime", "Musical", "Korean", "Thriller", "Anime", "Music","IMDB_Link", "Amtiaz", "Number_People")]
+
+# Assume data contains your data
+# Compute Gower dissimilarity index
+gower_dist <- daisy(new2_data, metric = "gower")
+
+# Run PAM algorithm
+set.seed(123)
+k <- 3  # Number of clusters
+pam_result <- pam(gower_dist, k = k)
+
+# Add cluster information to the data
+new2_data$Cluster <- pam_result$clustering
+new2_data$Name <- data$Name
+
+# Display results
+print(new2_data)
+
+
+```
+
+
+```{r}
+find_similar_animations <- function(animation_name, cluster_data) {
+  similar_animations <- cluster_data$Name[cluster_data$Name != animation_name]
+  
+  if (length(similar_animations) > 12) {
+    similar_animations <- similar_animations[1:12]
+  } else if (length(similar_animations) < 12) {
+    similar_animations <- c(similar_animations, rep(NA, 12 - length(similar_animations)))
+  }
+  
+  return(similar_animations)
+}
+
+# # Process for each animation in the list
+results <- list()
+
+for (i in 1:nrow(new2_data)) {
+  animation_name <- new2_data$Name[i]
+  cluster_id <- new2_data$Cluster[i]
+  cluster_data <- new2_data[new2_data$Cluster == cluster_id, ]
+  similar_animations <- find_similar_animations(animation_name, cluster_data)
+  results[[animation_name]] <- similar_animations
+}
+
+# Convert the results list to a dataframe
+results_df <- do.call(rbind, lapply(names(results), function(x) {
+  cbind(Animation = x, setNames(as.data.frame(t(results[[x]])), paste0("Similar_", 1:12)))
+}))
+
+desktop_path <- file.path(Sys.getenv("USERPROFILE"), "Desktop", "pam_clustered_similar_animations.csv")
+
+# Save the data to a CSV file on the desktop
+write_csv(results_df, desktop_path)
+
+# Display confirmation message
+print("The data has been successfully saved to a CSV file on the desktop.")
+```
+
