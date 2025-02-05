@@ -3,14 +3,17 @@ title: "ISL Final Project Phase III"
 author: "Pooria Assarehha"
 date: "`r Sys.Date()`"
 output: pdf_document
+editor_options: 
+  markdown: 
+    wrap: sentence
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-
 ## Exploratory Data Analaysis
+
 ```{r}
 library(ggplot2)
 library(dplyr)
@@ -33,6 +36,7 @@ print(summary_stats)
 ```
 
 Histograms for key numerical variables
+
 ```{r}
 num_cols <- c("IMDB_Link", "Amtiaz", "Number_People", "Total_Episodes")
 
@@ -43,6 +47,7 @@ for (col in num_cols) {
 ```
 
 Correlation heatmap
+
 ```{r}
 num_df <- df %>% select_if(is.numeric)
 corr_matrix <- cor(num_df, use="complete.obs")
@@ -52,6 +57,7 @@ corrplot(corr_matrix, method="color", col=colorRampPalette(c("blue", "white", "r
 ```
 
 Bar chart for Categorical Features, Country distribution
+
 ```{r}
 ggplot(df, aes(x=Country)) +
   geom_bar(fill="skyblue", color="black") +
@@ -60,6 +66,7 @@ ggplot(df, aes(x=Country)) +
 ```
 
 Bar chart for Rade distribution
+
 ```{r}
 ggplot(df, aes(x=Rade)) +
   geom_bar(fill="orange", color="black") +
@@ -68,6 +75,7 @@ ggplot(df, aes(x=Rade)) +
 ```
 
 Outlier detection using boxplots
+
 ```{r}
 numeric_features <- c("IMDB_Link", "Amtiaz", "Number_People", "Year", "Total_Episodes")
 df_long <- df %>% select(all_of(numeric_features)) %>% pivot_longer(everything(), names_to="Feature", values_to="Value")
@@ -81,39 +89,94 @@ ggplot(df_long, aes(x=Feature, y=Value)) +
 ```
 
 Checking for Skewness and Distribution
+
 ```{r}
 for (col in num_cols) {
   cat("Skewness of", col, ":", skewness(df[[col]], na.rm = TRUE), "\n")
 }
 ```
-Data Overview:
-The dataset contains 638 rows and 61 columns.
+
+Data Overview: The dataset contains 638 rows and 61 columns.
 There are both numerical and categorical features.
 Columns like URL, Name, and Rade are categorical, while others like IMDB_Link, Amtiaz, and Number_People are numerical.
 The dataset has no missing values after preprocessing.
 
-Numerical Features:
-IMDB_Link has values ranging from 2.1 to 9.3, with a mean of 6.84.
+Numerical Features: IMDB_Link has values ranging from 2.1 to 9.3, with a mean of 6.84.
 Amtiaz ranges from 17 to 100, with a mean of 84.6.
 Number_People has high variance, ranging from 1,000 to 998,000.
 Year values range from 1940 to 2025, with most data points concentrated in recent years.
 Some numerical columns (like Total_Episodes) have skewed distributions, which might affect modeling.
 
-Categorical Features:
-Country and Rade should be analyzed further with frequency counts.
+Categorical Features: Country and Rade should be analyzed further with frequency counts.
 Many binary genre columns (e.g., Romance, SciFi, Anime) are mostly 0s, meaning most movies don't belong to these genres.
 
-Missing Values:
-No missing values are present after cleaning.
+Missing Values: No missing values are present after cleaning.
 
-Correlation Analysis:
-Strong correlations exist between IMDB_Link, Amtiaz, and Number_People, indicating possible relationships worth exploring in modeling.
+Correlation Analysis: Strong correlations exist between IMDB_Link, Amtiaz, and Number_People, indicating possible relationships worth exploring in modeling.
 
 ## Feature Selection
 
 ## Model Map
 
+# simple linear regression
+
+```{r}
+data <- read.csv("C:/Users/Rosa/Desktop/uni/ISLR/clean_data.csv")
+dim(data)
+set.seed(1)
+
+n <- nrow(data)
+
+train_idx <- sample(1:n, size = 0.7 * n)  
+remaining_idx <- setdiff(1:n, train_idx)  
+valid_idx <- sample(remaining_idx, size = 0.15 * n)  
+test_idx <- setdiff(remaining_idx, valid_idx)  
+
+train_data <- data[train_idx, ]
+valid_data <- data[valid_idx, ]
+test_data  <- data[test_idx, ]
+
+linear_regression_model <- lm(Amtiaz~., data = train_data)
+summary(linear_regression_model)$r.squared
+```
+
+# ridge regression
+
+```{r}
+library(glmnet)
+
+x <- model.matrix(Amtiaz ~ ., data)[, -1]
+y <- data$Amtiaz
+x_train <- x[train_idx, ]
+x_test <- x[-train_idx, ]
+y_train <- y[train_idx]
+y_test <- y[-train_idx]
+
+ridge_cv <- cv.glmnet(x_train, y_train, alpha = 0, lambda = 10^seq(4, -2, length = 100))
+best_lambda_ridge <- ridge_cv$lambda.min
+cat("Optimal Lambda for Ridge: ", best_lambda_ridge, "\n")
+#grid <- 10^seq(10, -2, length=100)
+ridge_model <- glmnet(x_train, y_train, alpha = 0, lambda = best_lambda_ridge)
+summary(ridge_model)
+pred_ridge <- predict(ridge_model, s = best_lambda_ridge, newx = x_test)
+(mse <- mean((pred_ridge - y_test)^2))
+```
+
+# lasso regression
+
+```{r}
+lasso_cv <- cv.glmnet(x_train, y_train, alpha = 1, lambda = 10^seq(4, -2, length = 100))
+best_lambda_lasso <- lasso_cv$lambda.min
+cat("Optimal Lambda for Lasso: ", best_lambda_lasso, "\n")
+#grid <- 10^seq(10, -2, length=100)
+lasso_model <- glmnet(x_train, y_train, alpha = 1, lambda = best_lambda_lasso)
+summary(lasso_model)
+pred_lasso <- predict(lasso_model, s = best_lambda_lasso, newx = x_test)
+(mse <- mean((pred_lasso - y_test)^2))
+```
+
 # random forest
+
 ```{r}
 library(randomForest)
 library(tidyverse)
@@ -176,18 +239,7 @@ rsq <- 1 - sum((predictions - test_data$Amtiaz)^2) / sum((mean(test_data$Amtiaz)
 print(paste("R-squared:", rsq))
 ```
 
-
-
-
-
-
-
-
-
-
-
-
-#SVR
+# SVR
 
 ```{r}
 library(e1071)
@@ -212,6 +264,7 @@ df <- dummyVars(~ ., data = df) %>% predict(df) %>% as.data.frame()
 ```
 
 Split the data into features and target
+
 ```{r}
 target <- "Amtiaz"
 predictors <- setdiff(names(df), target)
@@ -222,6 +275,7 @@ predictors <- setdiff(names(df), target)
 ```
 
 train,test
+
 ```{r}
 set.seed(123)
 train_index <- sample(1:nrow(df), size = floor(0.8 * nrow(df)), replace = FALSE)
@@ -266,4 +320,29 @@ abline(0, 1, col = "red", lwd = 2)
 tuned <- tune(svm, Amtiaz ~ ., data = train_data_scaled,kernel = "radial", ranges = list(cost =c(0.1, 1, 10), gamma = c(0.01, 0.1, 1)))
 best_model <- tuned$best.model
 summary(best_model)
+```
+
+# RNN
+```{r}
+library(keras3)
+RNN_model = keras_model_sequential() %>%
+  layer_simple_rnn(units = 10, activation = "relu", input_shape = c(1350, 1)) %>%
+  layer_dense(units = 1)
+
+RNN_model %>% compile(
+  optimizer = "adam",
+  loss = "mse"
+)
+
+summary(RNN_model)
+
+history = RNN_model %>% fit(
+  x_train, y_train,
+  epochs = 10, batch_size = 16,
+  validation_data = list(x_test, y_test),
+  verbose = 1
+)
+
+y_pred = RNN_model %>% predict(x_test)
+(mse = mean((y_pred- y_test)^2))
 ```
