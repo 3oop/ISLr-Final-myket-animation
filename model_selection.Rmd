@@ -114,9 +114,57 @@ Missing Values: No missing values are present after cleaning.
 
 Correlation Analysis: Strong correlations exist between IMDB_Link, Amtiaz, and Number_People, indicating possible relationships worth exploring in modeling.
 
+
+
+
+
 ## Feature Selection
 
+
+
+
+
+
+
+
+
+
 ## Model Map
+
+```{r}
+data = 'clean_data.csv'
+df <- read.csv(data, stringsAsFactors = TRUE)
+```
+```{r}
+# Binary features (convert to factor)
+binary_features <- c(
+  "Publication", "VoiceActors", "Review", "Tips", "End", "Description", 
+  "Characters", "InformativeMessages", "PositiveAndNegative", "SummaryStory", 
+  "Screening", "Critics", "Conclusion", "Introduction", "Is_Doblele", 
+  "Series", "Animation", "Western", "Adventure", "Comedy", "Family", 
+  "Fantasy", "Mystery", "Action", "Romance", "Drama", "SciFi", "ShortFilm", 
+  "Crime", "Musical", "Korean", "Thriller", "Anime", "Music"
+)
+df[binary_features] <- lapply(df[binary_features], as.factor)
+
+# Numeric features (convert to numeric)
+numeric_features <- c(
+  "IMDB_Link", "Amtiaz", "Number_People", "Year", "Total_Words", "Num_Titles", 
+  "Total_Target_Words", "About_Words", "Story_Words", "Release_Date_Words", 
+  "Review_Words", "Final_Words", "Informative_Words", "Positive_Negative_Words", 
+  "Summary_Words", "Screening_Words", "Critics_Words", "Conclusion_Words", 
+  "Introduction_Words", "Voice_Actor_Words"
+)
+df[numeric_features] <- lapply(df[numeric_features], as.numeric)
+
+# Factor features (convert to factor)
+factor_features <- c("URL", "Name", "Country", "Rade", "Num_Seasons", "Total_Episodes")
+df[factor_features] <- lapply(df[factor_features], as.factor)
+```
+
+
+
+
 
 # simple linear regression
 
