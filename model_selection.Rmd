@@ -233,9 +233,11 @@ library(ggplot2)
 ```
 
 ```{r}
-data = 'C:/Users/SAM-Tech/Desktop/ISL/clean_data.csv'
+data = 'clean_data.csv'
 df <- read.csv(data, stringsAsFactors = TRUE)
+```
 
+```{r}
 df$Country <- factor(df$Country)
 df$Rade <- factor(df$Rade)
 df$Country <- factor(df$Country, levels = unique(df$Country))
@@ -313,6 +315,11 @@ ata.frame(Actual = test_data$Amtiaz, Predicted = test_predictions),
 library(randomForest)
 library(tidyverse)
 library(caret)
+```
+
+```{r}
+data = 'clean_data.csv'
+df <- read.csv(data, stringsAsFactors = TRUE)
 ```
 
 ```{r}
@@ -475,3 +482,83 @@ history = RNN_model %>% fit(
 y_pred = RNN_model %>% predict(x_test)
 (mse = mean((y_pred- y_test)^2))
 ```
+
+
+
+
+
+1)	Simple Linear Regression
+This model is often the first approach to try when you believe the relationship between the variables is linear.
+Pros:
+Easy to implement and interpret.
+Provides a clear and direct relationship between the predictor and the outcome.
+Cons:
+Assumes a linear relationship; might not work well if the relationship is nonlinear.
+Sensitive to outliers.
+the relationship between the predictors and the target is nonlinear, a more complex model is needed, like multiple regression.
+
+
+2)	Ridge Regression
+we have correlation among the predictors. It adds a penalty term to the least squares estimation, shrinking the coefficients to prevent overfitting. While simple linear regression is easy to implement, it doesn’t handle multicollinearity well, and its performance can degrade when predictors are highly correlated.
+Pros:
+Reduces model complexity and prevents overfitting by regularizing the coefficients.
+Useful in high-dimensional datasets.
+Cons:
+Does not perform feature selection (all features are included in the model).
+The results might be harder to interpret due to the regularization.
+We want to perform feature selection, lasso regression might be a better choice.
+
+
+3)	Lasso Regression
+Ridge regression shrinks coefficients but does not perform feature selection, meaning all features remain in the model, which can make interpretation difficult. Lasso regression, on the other hand, performs both regularization and feature selection by driving some coefficients to zero. This leads to a simpler, more interpretable model with fewer predictors. This is useful when we have some irrelevant predictors.
+Pros:
+Performs feature selection, resulting in simpler, more interpretable models.
+Effective when there are many irrelevant or redundant features.
+Cons:
+Might eliminate useful predictors if the penalty is too high.
+We use lasso regression to perform feature selection in addition to regularization.
+
+
+4)	Generalized Additive Model (GAM)
+This model allows for nonlinear relationships between predictors and the target variable(Amtiaz) and it fits a separate smoother for each predictor. The relationship between the predictors and Amtiaz is nonlinear but we want interpretability. While lasso regression is useful for regularization and feature selection, it assumes a linear relationship between the predictors and the target. GAM offers greater flexibility when the relationship is nonlinear and allows each predictor to have a nonlinear effect, improving model performance when there is no simple linear relationship.
+Pros:
+Allows for nonlinear relationships, providing flexibility in modeling complex data.
+More interpretable than non-parametric models like random forests.
+Cons:
+Can be computationally expensive.
+Requires careful tuning of smoothers.
+
+
+5)	Random Forest
+It is particularly useful for capturing complex, nonlinear relationships in the data. GAM is interpretable but might not perform as well as some machine learning methods when it comes to complex, high-dimensional data. We have a large number of predictors and complex interactions so that is why we use this model.
+Pros:
+Handles both numerical and categorical data.
+Robust to overfitting and performs well even with noisy data.
+Cons:
+Less interpretable compared to simpler models.
+Computationally expensive and can become slow with large datasets.
+
+
+6)	Support Vector Regression (SVR)
+t tries to find a hyperplane that best separates the data with a margin, handling nonlinear relationships using kernel functions. We have a dataset and need a powerful, nonlinear model that can handle complex relationships. Also the R-square of tree is low.
+Pros:
+Works well for high-dimensional spaces.
+Robust to overfitting, especially in high-dimensional space.
+Cons:
+Sensitive to the choice of the kernel and hyperparameters.
+Computationally expensive for large datasets.
+
+
+7)	Neural Networks (NN)
+This model is highly flexible and capable of learning complex patterns in the data through layers of interconnected nodes.
+Pros:
+Extremely powerful and flexible for modeling complex, nonlinear relationships.
+Can learn intricate patterns from large datasets.
+Cons:
+Difficult to interpret due to the "black-box" nature.
+
+
+
+
+
+
