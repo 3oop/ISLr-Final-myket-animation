@@ -9,7 +9,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-ابتدا کتابخانه های لازم را فراخوانی می کنیم
+First, we load the required libraries.
 
 ```{r}
 
@@ -20,10 +20,9 @@ library(httr)
 library(xml2)
 library(RSelenium)
 ```
+First, let's start with a single animation as an example.
 
-ابتدا به صورت نمونه با یک انیمیشن شروع می کنیم
-
-فیچرهایی رو استخراج می کنیم که خود سایت داده
+We'll extract the features provided by the website.
 
 ```{r}
 url <- "https://myket.ir/video/v-8B9BQ76FZY/ben-10-ultimate-alien"
@@ -38,7 +37,7 @@ imdb_link <- webpage %>%
   html_elements("#movie-info-wrapper > div.movie-highlight-info > div.movie-imdb-wrapper > div.imdb-rate") %>%
   html_text()
 
-# نمایش لینک IMDB
+#  IMDB
 print(imdb_link)
 #amtiaz
 
@@ -52,7 +51,7 @@ number_people <- webpage %>%
   html_text()
 print(number_people)
 ############
-#بررسی کنیم ایا این کدها برای انیمیشن دیگری هم درست است
+#Let's test whether these codes work for another animation as well.
 url <- "https://myket.ir/video/v-MPUOBUK6FY/the-spongebob-movie-sponge-out-of-water"
 webpage <- read_html(url)
 
@@ -65,7 +64,7 @@ imdb_link <- webpage %>%
   html_elements("#movie-info-wrapper > div.movie-highlight-info > div.movie-imdb-wrapper > div.imdb-rate") %>%
   html_text()
 
-# نمایش لینک IMDB
+#  IMDB
 print(imdb_link)
 #amtiaz
 amtiaz <- webpage %>%
@@ -86,7 +85,7 @@ country <- sub("ساخت ", "", country)  # حذف کلمه "ساخت"
 
 year <- sub(".*سال ", "", yearandcountry)
 
-# نمایش نام کشور و سال
+#  Select the columns for country name and year
 print(country)
 print(year)
 #******
@@ -112,7 +111,7 @@ a4<-webpage %>%
   html_text()
 print(a4)
 
-#می توانیم به جای a1,a2,a3,a4 از این کد استفاده کنیم
+#We can use the following code instead of a1, a2, a3, a4
 tags <- sapply(1:20, function(i) {
   tag <- webpage %>%
     html_elements(paste0("#movie-info-wrapper > div.tag-wrapper > a:nth-child(", i, ")")) %>%
@@ -123,7 +122,7 @@ tags <- sapply(1:20, function(i) {
   return(tag)
 })
 
-# حذف مقادیر NA از تگ ها
+# To remove NA values from tags
 tags <- tags[!is.na(tags)]
 print(tags)
 #**
@@ -134,8 +133,7 @@ Family <- ifelse("خانوادگی" %in% tags, 1, 0)
 Fantasy <- ifelse("فانتزی" %in% tags, 1, 0)
 #********
 ```
-
-فیچرهایی که خودمان در میاوریم
+Custom features that we create ourselves
 
 ```{r}
 library(stringr)
