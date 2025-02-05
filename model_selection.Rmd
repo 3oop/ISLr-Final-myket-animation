@@ -140,7 +140,7 @@ summary(linear_regression_model)$r.squared
 ```{r}
 library(glmnet)
 x <- model.matrix(Amtiaz ~ ., df)[, -1]
-y <- data$Amtiaz
+y <- df$Amtiaz
 x_train <- x[train_idx, ]
 x_test <- x[-train_idx, ]
 y_train <- y[train_idx]
