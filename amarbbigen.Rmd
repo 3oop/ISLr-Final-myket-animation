@@ -104,24 +104,45 @@ save(model, file = "random_forest_model.RData")
 
 
 ```{r}
-# بارگذاری کتابخانه‌های مورد نیاز
 library(randomForest)
-library(DALEX)  # جایگزین برای iml
+library(DALEX)  #iml
 library(pdp)
 library(lime)
 library(rpart)
 library(rpart.plot)
 
 model <- randomForest(X_train, y_train, ntree = 200)
-# روش ۱: Partial Dependence Plot (PDP)
+# Global Methods
+
+#  Partial Dependence Plot (PDP)
 pdp_result <- partial(model, pred.var = "Total_Episodes", train = X_train)
 plot(pdp_result)
 
-# روش ۲: Global Surrogate Model
+#  Global Surrogate Model
 surrogate <- rpart(y_train ~ ., data = as.data.frame(X_train))
 rpart.plot(surrogate)
 
 
+#3  Feature Importance
+
+# Calculate feature importance
+importance_matrix <- importance(model)
+
+# Print feature importance
+print(importance_matrix)
+
+# Plot feature importance
+varImpPlot(model)
+
+# Local Methods
+
+#The codes for this section are written in Python
+
 ```
+
+
+"The conclusion from the XGBoost model using the Breakdown chart indicates that features such as IMDB Link, Number of People, Total Words, and Year have the greatest impact on predicting animation scores. Features with positive effects have increased the predicted value, while features with negative effects have decreased it
+
+
 
 
