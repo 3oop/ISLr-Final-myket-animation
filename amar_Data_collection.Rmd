@@ -9,9 +9,9 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-ابتدا تمام لینک های انیمیشن را جمع اوری می کنیم
+First, we collect all the animation links.
 
-کتابخانه های لازم را فراخوانی می کنیم
+We call the necessary libraries.
 
 ```{r}
 # Load required libraries
@@ -22,7 +22,7 @@ library(xml2)
 library(RSelenium)
 ```
 
-در ابتدا لینک انیمیشن هایی رو وارد می کنیم که صفحه پیچ انها متحرک نیست
+First, we enter the links of animations whose pages are not animated.
 
 ```{r}
 extract_links <- function(url) {
@@ -44,7 +44,7 @@ extract_links <- function(url) {
   })
 }
 
-# تابع برای پیمایش صفحات و استخراج تمامی لینک‌های انیمیشن‌ها
+# A function to traverse pages and extract all animation links.
 get_all_links <- function(start_url) {
   all_links <- c()
   next_page <- start_url
@@ -52,13 +52,13 @@ get_all_links <- function(start_url) {
     result <- extract_links(next_page)
     all_links <- c(all_links, result$links)
     next_page <- result$next_page
-    Sys.sleep(2) # اضافه کردن تاخیر برای جلوگیری از مشکلات اتصال
+    Sys.sleep(2) # Adding delay to prevent connection issues.
   }
-  all_links <- unique(all_links)  # حذف لینک‌های تکراری
+  all_links <- unique(all_links)  #Removing duplicate links
   return(all_links)
 }
 
-# URLهای صفحات مختلف
+# Different page URLs
 urls <- c(
   "https://myket.ir/video/animation",
   "https://myket.ir/video/list/sponge-bob-square-pants",
@@ -70,20 +70,18 @@ urls <- c(
   "https://myket.ir/video/list/academy-award-for-best-animated-feature-film"
 )
 
-# استخراج لینک‌ها از تمامی URLها با پیمایش بین صفحات
+#Extracting links from all URLs by traversing between pages
 all_links <- lapply(urls, get_all_links) %>% unlist() %>% unique()
 
-# نمایش لینک‌های انیمیشن‌ها
+# Displaying animation links
 print(all_links)
 
 ```
+Now we move on to animated pages.
 
-حالا میرسیم به صفحات متحرک
+For animated pages, we use Python code and save the links of each page in a CSV file.
 
-برای صفحات متحرک از کد پایتون استفاده می کنیم و  لینک های هر صفحه در یک فایل سی اس وی میریزیم
-
-حالا اون فایلهای رو فراخوانی می کنیم
-
+Now we call those files.
 ```{r}
 library(readr)
 animation_links <- read_csv("C:/Users/USER/Desktop/animation_links.csv")
@@ -97,7 +95,7 @@ animation_links8 <- read_csv("C:/Users/USER/Desktop/animation_links8.csv")
 animation_links9 <- read_csv("C:/Users/USER/Desktop/animation_links9.csv")
 ```
 
-حالا تمیزکاری و تجمیع لینک ها
+Now cleaning and aggregating the links.
 
 ```{r}
 all_animation_links <-bind_rows(animation_links, animation_links2,animation_links3,animation_links4, animation_links5,animation_links6,animation_links7, animation_links8,animation_links9)
@@ -107,13 +105,13 @@ all_animation_links<-gsub("https://myket.irhttps://myket.ir", "https://myket.ir"
 all_animation_links <- unique(all_animation_links)
 ```
 
-و در نهایت
+And finally...
 
 ```{r}
 library(rvest)
 library(readr)
 library(stringr)
-# تابع برای استخراج تگ ها از یک لینک خاص
+# A function to extract tags from a specific link
 extract_tags <- function(url) {
     webpage <- read_html(url)
     
@@ -131,7 +129,7 @@ extract_tags <- function(url) {
     return(tags)
 }
 
-# تابع برای بررسی وجود بخش های مختلف در انیمیشن
+# A function to check the existence of different sections in the animation
 check_section <- function(filtered_sosy, keyword) {
     results <- integer(length(filtered_sosy))
     for (i in 1:length(filtered_sosy)) {
@@ -144,16 +142,16 @@ check_section <- function(filtered_sosy, keyword) {
     return(sum(results))
 }
 
-# تابع برای شمارش تعداد کلمات
+# A function to count the number of words
 count_words <- function(text) {
     return(length(unlist(strsplit(text, "\\s+"))))
 }
 
-# تابع برای استخراج ویژگی ها از یک لینک خاص
+# A function to extract features from a specific link
 extract_movie_features <- function(url) {
     webpage <- read_html(url)
     
-    # استخراج لینک IMDb
+    # Extracting IMDb link
     imdb_link <- tryCatch({
         webpage %>%
             html_elements("#movie-info-wrapper > div.movie-highlight-info > div.movie-imdb-wrapper > div.imdb-rate") %>%
@@ -164,7 +162,7 @@ extract_movie_features <- function(url) {
         imdb_link <- NA
     }
     
-    # استخراج امتیاز
+    # Extracting amtiaz
     amtiaz <- tryCatch({
         webpage %>%
             html_elements("#movie-info-wrapper > div.movie-highlight-info > div.movie-review-wrapper > div.review-rate") %>%
@@ -175,7 +173,7 @@ extract_movie_features <- function(url) {
         amtiaz <- NA
     }
     
-    # استخراج تعداد آرا
+    # Extracting number_people
     number_people <- tryCatch({
         webpage %>%
             html_elements("#movie-info-wrapper > div.movie-highlight-info > div.movie-review-wrapper > div.review-count") %>%
@@ -186,7 +184,7 @@ extract_movie_features <- function(url) {
         number_people <- NA
     }
     
-    # استخراج کشور و سال
+    #Extracting country and year
     yearandcountry <- tryCatch({
         webpage %>%
             html_elements("#movie-info-wrapper > div.movie-summary > span:nth-child(1)") %>%
@@ -210,7 +208,7 @@ extract_movie_features <- function(url) {
         year <- NA
     }
     
-    # استخراج رده سنی
+    # Extracting rade
     rade <- tryCatch({
         webpage %>%
             html_elements("#movie-info-wrapper > div.movie-summary > span:nth-child(2)") %>%
@@ -221,7 +219,7 @@ extract_movie_features <- function(url) {
         rade <- NA
     }
     
-    # استخراج نام انیمیشن
+    # Extracting name
     name <- tryCatch({
         webpage %>%
             html_elements("#movie-description > h2:nth-child(3)") %>%
@@ -234,7 +232,7 @@ extract_movie_features <- function(url) {
         name <- sub("داستان ", "", name)  # حذف کلمه "داستان"
     }
     
-    # استخراج تگ ها و ایجاد ستون های مربوطه
+    # Extracting tags and creating corresponding columns
     tags <- extract_tags(url)
     tag_columns <- data.frame(
         Series = ifelse("سریال" %in% tags, 1, 0),
@@ -259,7 +257,7 @@ extract_movie_features <- function(url) {
         stringsAsFactors = FALSE
     )
     
-    # استخراج تعداد فصل‌ها و قسمت‌ها
+    # Extracting the number of seasons and episodes
     text <- webpage %>%
         html_elements("#main-Content > div:nth-child(1) > section.left-section") %>%
         html_text()
@@ -274,10 +272,10 @@ extract_movie_features <- function(url) {
     
     total_episodes <- sum(num_episodes)
     
-    # لیستی برای ذخیره نتایج
+    # A list to store the results
     sosx <- list()
     
-    # حلقه برای استخراج متن از هر nth-child
+    # Loop to extract text from each nth-child
     for (i in 1:40) {
         selector <- paste0("#movie-description > p:nth-child(", i, ")")
         text <- webpage %>%
@@ -290,7 +288,7 @@ extract_movie_features <- function(url) {
     
     sosy <- list()
     
-    # حلقه برای استخراج متن از هر nth-child
+    # Loop to extract text from each nth-child
     for (i in 1:40) {
         selector <- paste0("#movie-description > h2:nth-child(", i, ")")
         text <- webpage %>%
@@ -299,10 +297,10 @@ extract_movie_features <- function(url) {
         sosy[[i]] <- text
     }
     
-    # حذف موارد character(0) از لیست
+    # "Removing character(0) items from the list
     filtered_sosy <- sosy[lapply(sosy, length) > 0]
     
-    # بررسی وجود بخش‌های مختلف در انیمیشن
+    # Checking the existence of different sections in the animation
     Publication <- check_section(filtered_sosy, "انتشار")
     voiceactors <- check_section(filtered_sosy, "صدا")
     Review <- check_section(filtered_sosy, "بررسی")
@@ -318,24 +316,24 @@ extract_movie_features <- function(url) {
     conclusion <- check_section(filtered_sosy, "نتیجه")
     introduction <- check_section(filtered_sosy, "معرفی")
     
-    # کل توضیحات
+    # total_ descriptions words
     total_words <- sum(unlist(lapply(sosx, function(section) {
         count_words(section)
     })))
     
-    # تعداد عناوین
+    # Number of titles
     num_titles <- length(filtered_sosy)
     
-    # عنوان دوبله دارد یا ندارد
+    # Whether the title has a dub or not
     onvan <- webpage %>%
         html_elements("#movie-info-wrapper > h1") %>%
         html_text()
     is_doblele <- ifelse(any(grepl("دوبله", onvan)), 1, 0)
     
-    # تعریف کلمات مورد نظر
+    # Defining the desired words
     target_words <- c("بهترین", "افتخار", "جذاب", "نامزد", "موفقیت", "لذت")
 
-# شمارش تعداد تکرار هر کلمه در متن‌های filtered_sosx
+# Counting the number of repetitions of each word in the filtered_sosx texts
 word_counts <- sapply(target_words, function(word) {
     sum(sapply(filtered_sosx, function(text) {
         length(gregexpr(word, text)[[1]][gregexpr(word, text)[[1]] > 0])
@@ -344,19 +342,19 @@ word_counts <- sapply(target_words, function(word) {
 
 total_target_words <- sum(word_counts)
 
-# استخراج موقعیت ها
+# Extracting locations
 positions <- c()
 
-# جستجو در عناصر filtered_sosy و پیدا کردن موقعیت آن‌ها در sosy
+# Searching within the elements of filtered_sosy and finding their positions in sosy
 for (i in seq_along(filtered_sosy)) {
     position <- which(sapply(sosy, function(x) identical(filtered_sosy[[i]], x)))
     positions <- c(positions, position)
 }
 
-# حذف مقادیر تکراری
+# Removing duplicate values
 positions <- unique(positions)
 
-# تابع برای استخراج و شمارش کلمات بر اساس کلمات کلیدی مختلف
+# A function to extract and count words based on different keywords
 extract_and_count_words <- function(filtered_sosy, sosy, positions, keyword) {
     position_indices <- which(sapply(filtered_sosy, function(x) any(grepl(keyword, x))))
     
@@ -407,7 +405,7 @@ extract_and_count_words <- function(filtered_sosy, sosy, positions, keyword) {
     return(total_word_count)
 }
 
-# استخراج و شمارش کلمات برای بخش‌های مختلف
+# Extracting and counting words for different sections
 about_words <- extract_and_count_words(filtered_sosy, sosy, positions, "درباره")
 story_words <- extract_and_count_words(filtered_sosy, sosy, positions, "داستان")
 release_date_words <- extract_and_count_words(filtered_sosy, sosy, positions, "انتشار")
@@ -422,7 +420,7 @@ conclusion_words <- extract_and_count_words(filtered_sosy, sosy, positions, "ن�
 introduction_words <- extract_and_count_words(filtered_sosy, sosy, positions, "معرفی")
 voice_actor_words <- extract_and_count_words(filtered_sosy, sosy, positions, "صدا")
 
-# بازگرداندن ویژگی‌ها به صورت دیتا فریم
+# Returning features as a data frame
 return(data.frame(
     URL = url,
     Name = name,
@@ -470,7 +468,7 @@ return(data.frame(
 ))
 }
 
-# استفاده از تابع برای استخراج ویژگی‌ها از تمامی انیمیشن‌ها
+# Using a function to extract features from all animations
 all_movie_features <- lapply(all_animation_links, function(url) {
     features <- extract_movie_features(url)
     if (length(features) == 0) {
@@ -541,16 +539,17 @@ all_movie_features <- lapply(all_animation_links, function(url) {
     return(features)
 })
 
-# ایجاد دیتافریم با مقدار پیش فرض NA برای ویژگی های گمشده
+# Create a data frame with default NA values for missing features
 all_movie_features_df <- do.call(rbind, all_movie_features)
 
-# تعیین مسیر دسکتاپ برای ذخیره فایل CSV (برای ویندوز)
+# Set the desktop path for saving the CSV file (for Windows)
 desktop_path <- file.path(Sys.getenv("USERPROFILE"), "Desktop", "animation_movie_features.csv")
 
-# ذخیره اطلاعات در فایل CSV در دسکتاپ
+# Save the information in a CSV file on the desktop
 write_csv(all_movie_features_df, desktop_path)
 
-# نمایش پیام تایید
-print("اطلاعات با موفقیت در فایل CSV در دسکتاپ ذخیره شد.")
+# Display confirmation message
+print("Information successfully saved in the CSV file on the desktop.")
+
 ```
 
