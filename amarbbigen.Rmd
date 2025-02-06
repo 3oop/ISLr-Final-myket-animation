@@ -1,0 +1,127 @@
+---
+title: "amrabbigen"
+author: "luka"
+date: "2025-02-06"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(readr)
+clean_data <- read_csv("C:/Users/USER/Downloads/clean_data.csv")
+data <- clean_data
+```
+
+
+```{r}
+# بارگذاری کتابخانه‌های مورد نیاز
+library(MASS)
+library(glmnet)
+library(randomForest)
+library(e1071)
+library(nnet)
+library(mgcv)
+
+# حذف ستون‌های غیر ضروری
+data <- data[, -c(1, 2,3,7,9)]  # حذف دو ستون اول
+X <- data[, -which(names(data) == "Amtiaz" | names(data) == "country")]
+y <- data$Amtiaz
+
+# تبدیل متغیرهای کیفی به دامی (dummy variables)
+X <- model.matrix(~ . - 1, data = X)
+
+# تقسیم داده‌ها به مجموعه‌های آموزشی و آزمایشی
+set.seed(42)
+trainIndex <- sample(1:nrow(X), 0.8 * nrow(X))
+X_train <- X[trainIndex, ]
+X_test <- X[-trainIndex, ]
+y_train <- y[trainIndex]
+y_test <- y[-trainIndex]
+
+# تعریف و فیت کردن مدل‌ها
+models <- list(
+  "Linear Regression" = lm(y_train ~ ., data = as.data.frame(X_train)),
+  "Ridge Regression" = cv.glmnet(X_train, y_train, alpha = 0),
+  "Lasso Regression" = cv.glmnet(X_train, y_train, alpha = 1),
+  "Random Forest" = randomForest(X_train, y_train),
+  "Support Vector Regression (SVR)" = svm(X_train, y_train),
+  "Neural Networks (NN)" = nnet(X_train, y_train, size = 10, linout = TRUE, trace = FALSE),
+  "Generalized Additive Model (GAM)" = gam(y_train ~ s(X_train))
+)
+
+# ارزیابی مدل‌ها
+results <- lapply(models, function(model) {
+  if (inherits(model, "cv.glmnet")) {
+    y_pred <- predict(model, X_test, s = "lambda.min")
+  } else if (inherits(model, "gam")) {
+    y_pred <- predict(model, as.data.frame(X_test))
+  } else {
+    y_pred <- predict(model, newdata = as.data.frame(X_test))
+  }
+  mse <- mean((y_test - y_pred)^2)
+  return(mse)
+})
+
+# نمایش نتایج
+results <- unlist(results)
+for (name in names(results)) {
+  cat(paste(name, "MSE =", results[[name]], "\n"))
+}
+
+# انتخاب بهترین مدل بر اساس کمترین MSE
+best_model_name <- names(which.min(results))
+cat("The best model is:", best_model_name, "\n")
+
+```
+
+```{r}
+# Load required libraries
+library(randomForest)
+
+# Seed for reproducibility
+set.seed(42)
+
+
+# Fit the Random Forest model
+model <- randomForest(X_train, y_train, ntree = 200)
+
+# Predict using the model
+y_pred <- predict(model, X_test)
+
+# Calculate Mean Squared Error
+mse <- mean((y_test - y_pred)^2)
+print(paste("Random Forest MSE:", mse))
+
+# Save the model
+save(model, file = "random_forest_model.RData")
+
+```
+
+
+
+
+```{r}
+# بارگذاری کتابخانه‌های مورد نیاز
+library(randomForest)
+library(DALEX)  # جایگزین برای iml
+library(pdp)
+library(lime)
+library(rpart)
+library(rpart.plot)
+
+model <- randomForest(X_train, y_train, ntree = 200)
+# روش ۱: Partial Dependence Plot (PDP)
+pdp_result <- partial(model, pred.var = "Total_Episodes", train = X_train)
+plot(pdp_result)
+
+# روش ۲: Global Surrogate Model
+surrogate <- rpart(y_train ~ ., data = as.data.frame(X_train))
+rpart.plot(surrogate)
+
+
+```
+
+
