@@ -179,7 +179,7 @@ print("The data has been successfully saved to a CSV file on the desktop.")
 
 ## Model Map
 
-#Separating train, test and validation set
+# Separating train, test and validation set
 ```{r}
 # removing features that are unique for each record
 df <- df[,-c(1,2,3)]
@@ -194,7 +194,7 @@ train_data <- df[train_idx, ]
 valid_data <- df[valid_idx, ]
 test_data  <- df[test_idx, ]
 ```
-# simple linear regression
+# Simple linear regression
 
 ```{r}
 linear_regression_model <- lm(Amtiaz~., data = train_data)
@@ -209,7 +209,7 @@ MSE for Linear regression :  143.9914
 MAE for Linear regression :  8.128822 
 R2 for Linear regression :  -0.106155 
 
-# ridge regression
+# Ridge regression
 
 ```{r}
 x <- model.matrix(Amtiaz ~ ., df)[, -1]
@@ -241,7 +241,7 @@ MSE for Ridge :  112.9001
 MAE for Ridge :  7.251606 
 R2 for Ridge :  0.1326908 
 
-# lasso regression
+# Lasso regression
 
 ```{r}
 #tuning lambda parameter
@@ -369,33 +369,47 @@ R2 for SVR :  0.006120485
 
 # GAM
 ```{r}
-df$Country <- factor(df$Country)
-df$Rade <- factor(df$Rade)
-df$Country <- factor(df$Country, levels = unique(df$Country))
-df$Rade <- factor(df$Rade, levels = unique(df$Rade))
-df$Year <- as.numeric(df$Year)
-df$Amtiaz <- as.numeric(df$Amtiaz)
-df$IMDB_Link <- as.numeric(df$IMDB_Link)
-## Identify binary variables and convert them to factors
-#binary_vars <- setdiff(names(df), c("Country", "Rade", "Year", "Amtiaz", "IMDB_Link"))
-#df[binary_vars] <- lapply(df[binary_vars], as.factor)
+binary_to_categorical <- function(data) {
+  binary_cols <- sapply(data, function(col) {
+    values <- unique(col)
+    length(values) == 2 && all(values %in% c(0, 1))
+  })
+  binary_cols <- names(data)[binary_cols] 
+  if (length(binary_cols) > 0) {
+    data[binary_cols] <- lapply(data[binary_cols], as.factor)
+  }
+  return(data)
+}
+df <- binary_to_categorical(df)
 ```
-
 ```{r}
-set.seed(123)
-train_index <- sample(1:nrow(df), size = floor(0.8 * nrow(df)), replace = FALSE)
 train_data <- df[train_index, ]
+valid_data <- df[valid_idx, ]
 test_data <- df[-train_index, ]
+x <- model.matrix(Amtiaz ~ ., df)[, -1]
+y <- df$Amtiaz
+x_train <- x[train_idx, ]
+x_test <- x[test_idx, ]
+x_valid <- x[valid_idx, ]
+y_train <- y[train_idx]
+y_test <- y[test_idx]
+y_valid <- y[valid_idx]
 
-# Align test set factor levels with training set
-test_data$Country <- factor(test_data$Country, levels = levels(train_data$Country))
-test_data$Rade <- factor(test_data$Rade, levels = levels(train_data$Rade))
-```
+formula <- as.formula(paste("Amtiaz ~", 
+                            paste(paste0("s(", num_vars, ")"), collapse = " + "), 
+                            "+", paste(cat_vars, collapse = " + ")))
+grid_gam <- expand.grid(k = c(5, 10, 15))
+gam_tuned <- train(
+  formula,
+  data = df,
+  method = "gam",
+  tuneGrid = grid_gam
+  ,
+  trControl = trainControl(method = "cv", number = 5)
+)
 
-```{r}
-gam_model <- gam(Amtiaz ~ s(Year) + s(IMDB_Link) + Country + Rade, data=train_data, method ="REML")
+gam_model <- gam(formula, data=valid_data, method ="REML")
 
-summary(gam_model)
 ```
 
 ```{r}
