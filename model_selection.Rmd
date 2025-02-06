@@ -264,7 +264,7 @@ MSE for Lasso :  114.0951
 MAE for Lasso :  7.167505 
 R2 for Lasso :  0.1235109
 
-#XG Boost
+# XG Boost
 ```{r}
 #tuning parameters nrounds(number of repetitions), eta(learning rate), max_depth(trees depth), gamma(minimum reduction in waste), colsample_bytree(feature #selection percentage for each tree), min_child_weight(minimum sample weight at nodes), subsample(sampling ratio)
 grid <- expand.grid(nrounds = c(50, 100, 150),   
