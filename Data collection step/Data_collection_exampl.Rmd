@@ -1,0 +1,420 @@
+---
+title: "Data_collection"
+author: "luka"
+date: "2025-02-04"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+First, we load the required libraries.
+
+```{r}
+
+# Load required libraries
+library(rvest)
+library(tidyverse)
+library(httr)
+library(xml2)
+library(RSelenium)
+```
+First, let's start with a single animation as an example.
+
+We'll extract the features provided by the website.
+
+```{r}
+url <- "https://myket.ir/video/v-8B9BQ76FZY/ben-10-ultimate-alien"
+webpage <- read_html(url)
+
+# Display a snippet of the HTML content
+cat(substr(as.character(webpage), 1, 500))
+
+#*************
+# imdb_link
+imdb_link <- webpage %>%
+  html_elements("#movie-info-wrapper > div.movie-highlight-info > div.movie-imdb-wrapper > div.imdb-rate") %>%
+  html_text()
+
+#  IMDB
+print(imdb_link)
+#amtiaz
+
+amtiaz <- webpage %>%
+  html_elements("#movie-info-wrapper > div.movie-highlight-info > div.movie-review-wrapper > div.review-rate") %>%
+  html_text()
+print(amtiaz)
+#number
+number_people <- webpage %>%
+  html_elements("#movie-info-wrapper > div.movie-highlight-info > div.movie-review-wrapper > div.review-count") %>%
+  html_text()
+print(number_people)
+############
+#Let's test whether these codes work for another animation as well.
+url <- "https://myket.ir/video/v-MPUOBUK6FY/the-spongebob-movie-sponge-out-of-water"
+webpage <- read_html(url)
+
+# Display a snippet of the HTML content
+cat(substr(as.character(webpage), 1, 500))
+
+#*************
+# imdb_link
+imdb_link <- webpage %>%
+  html_elements("#movie-info-wrapper > div.movie-highlight-info > div.movie-imdb-wrapper > div.imdb-rate") %>%
+  html_text()
+
+#  IMDB
+print(imdb_link)
+#amtiaz
+amtiaz <- webpage %>%
+  html_elements("#movie-info-wrapper > div.movie-highlight-info > div.movie-review-wrapper > div.review-rate") %>%
+  html_text()
+print(amtiaz)
+#number
+number_people <- webpage %>%
+  html_elements("#movie-info-wrapper > div.movie-highlight-info > div.movie-review-wrapper > div.review-count") %>%
+  html_text()
+print(number_people)
+#********
+yearandcountry <- webpage %>%
+  html_elements("#movie-info-wrapper > div.movie-summary > span:nth-child(1)") %>%
+  html_text()
+country <- sub("سال .*", "", yearandcountry)
+country <- sub("ساخت ", "", country)  # حذف کلمه "ساخت"
+
+year <- sub(".*سال ", "", yearandcountry)
+
+#  Select the columns for country name and year
+print(country)
+print(year)
+#******
+rade <- webpage %>%
+  html_elements("#movie-info-wrapper > div.movie-summary > span:nth-child(2)") %>%
+  html_text()
+print(rade)
+#**********
+a1<- webpage %>%
+  html_elements("#movie-info-wrapper > div.tag-wrapper > a:nth-child(1)") %>%
+  html_text()
+print(a1)
+a2<-webpage %>%
+  html_elements("#movie-info-wrapper > div.tag-wrapper > a:nth-child(2)") %>%
+  html_text()
+print(a2)
+a3<-webpage %>%
+  html_elements("#movie-info-wrapper > div.tag-wrapper > a:nth-child(3)") %>%
+  html_text()
+print(a3)
+a4<-webpage %>%
+  html_elements("#movie-info-wrapper > div.tag-wrapper > a:nth-child(4)") %>%
+  html_text()
+print(a4)
+
+#We can use the following code instead of a1, a2, a3, a4
+tags <- sapply(1:20, function(i) {
+  tag <- webpage %>%
+    html_elements(paste0("#movie-info-wrapper > div.tag-wrapper > a:nth-child(", i, ")")) %>%
+    html_text()
+  if (length(tag) == 0) {
+    return(NA)
+  }
+  return(tag)
+})
+
+# To remove NA values from tags
+tags <- tags[!is.na(tags)]
+print(tags)
+#**
+Animation <- ifelse("انیمیشن" %in% tags, 1, 0)
+Adventure <- ifelse("ماجراجویی" %in% tags, 1, 0)
+Comedy <- ifelse("کمدی" %in% tags, 1, 0)
+Family <- ifelse("خانوادگی" %in% tags, 1, 0)
+Fantasy <- ifelse("فانتزی" %in% tags, 1, 0)
+#********
+```
+Custom features that we create ourselves
+
+```{r}
+library(stringr)
+url <- "https://myket.ir/video/v-LWB7TS4E48/arcane"
+webpage <- read_html(url)
+
+#text:
+text<- webpage %>%
+     html_elements("#main-Content > div:nth-child(1) > section.left-section") %>%
+     html_text()
+seasons <- str_extract_all(text, "فصل \\d+")
+num_seasons <- length(unique(seasons[[1]]))
+cat("تعداد فصل‌ها:", num_seasons, "\n")
+
+# Finding the number of episodes in each season
+episodes_per_season <- str_match_all(text, "فصل \\d+ - قسمت \\d+")
+episodes_vector <- as.vector(episodes_per_season[[1]])
+# Removing duplicate values
+unique_episodes <- unique(episodes_vector)
+# Counting the number of episodes in each season
+num_episodes <- table(str_extract(unique_episodes, "فصل \\d+"))
+
+# Displaying the number of episodes in each season
+cat("تعداد قسمت‌ها در هر فصل:\n")
+print(num_episodes)
+total_episodes <- sum(num_episodes)
+cat("تعداد کل قسمت‌ها: ", total_episodes, "\n")
+
+#Now we want to check what headings are present or absent in the animation descriptions
+
+# List to store descriptions of each heading
+sosx <- list()
+
+# Loop to extract text from each nth-child
+for (i in 1:40) {
+  selector <- paste0("#movie-description > p:nth-child(", i, ")")
+  text <- webpage %>%
+    html_elements(selector) %>%
+    html_text()
+  sosx[[i]] <- text
+}
+
+filtered_sosx <- sosx[lapply(sosx, length) > 0]
+# List to store each heading
+sosy <- list()
+
+# Loop to extract text from each nth-child
+for (i in 1:40) {
+  selector <- paste0("#movie-description > h2:nth-child(", i, ")")
+  text <- webpage %>%
+    html_elements(selector) %>%
+    html_text()
+  sosy[[i]] <- text
+}
+
+
+# Remove character(0) from the list
+filtered_sosy <- sosy[lapply(sosy, length) > 0]
+
+
+
+# We want to check if the animation description contains the heading or not
+# Define a function to check and count occurrences of specific words
+count_keyword_occurrences <- function(filtered_sosy, keyword) {
+    results <- integer(length(filtered_sosy))
+    for (i in seq_along(filtered_sosy)) {
+        if (grepl(keyword, filtered_sosy[[i]])) {
+            results[i] <- 1
+        } else {
+            results[i] <- 0
+        }
+    }
+    return(sum(results))
+}
+
+# Use the function for different words
+Publication <- count_keyword_occurrences(filtered_sosy, "انتشار")
+voiceactors <- count_keyword_occurrences(filtered_sosy, "صدا")
+Review <- count_keyword_occurrences(filtered_sosy, "بررسی")
+tips <- count_keyword_occurrences(filtered_sosy, "نکات")
+end <- count_keyword_occurrences(filtered_sosy, "پایانی")
+Description <- count_keyword_occurrences(filtered_sosy, "چیست")
+characters <- count_keyword_occurrences(filtered_sosy, "شخصیت")
+Informativemessages <- count_keyword_occurrences(filtered_sosy, "آموزنده")
+positiveandnegative <- count_keyword_occurrences(filtered_sosy, "مثبت")
+summarystory <- count_keyword_occurrences(filtered_sosy, "خلاصه")
+Screening <- count_keyword_occurrences(filtered_sosy, "اکران")
+critics <- count_keyword_occurrences(filtered_sosy, "منتقدان")
+conclusion <- count_keyword_occurrences(filtered_sosy, "نتیجه")
+introduction <- count_keyword_occurrences(filtered_sosy, "معرفی")
+
+# Display results
+print(Publication)
+print(voiceactors)
+print(Review)
+print(tips)
+print(end)
+print(Description)
+print(characters)
+print(Informativemessages)
+print(positiveandnegative)
+print(summarystory)
+print(Screening)
+print(critics)
+print(conclusion)
+print(introduction)
+
+count_words <- function(text) {
+  if (is.null(text) || text == "") {
+    return(0)
+  }
+  words <- strsplit(text, "\\s+")[[1]]
+  return(length(words))
+}
+
+# Calculate total number of words in `sosx`
+total_words <- sum(unlist(lapply(filtered_sosx, function(section) {
+  count_words(section)
+})))
+
+print(total_words)
+
+
+# Number of headings
+length(filtered_sosy)
+# Whether the title has dubbing or not
+onvan <- webpage %>%
+  html_elements("#movie-info-wrapper > h1") %>%
+  html_text()
+print(onvan)
+is_doblele <- ifelse(any(grepl("دوبله", onvan)), 1, 0)
+
+print(is_doblele)
+
+# A feature that is very influential is that each animation description has some keywords like best
+#   The number of these important keywords
+target_words <- c("بهترین", "افتخار", "جذاب", "نامزد", "موفقیت", "لذت")
+
+# Count the number of occurrences of each word in filtered_sosx texts
+word_counts <- sapply(target_words, function(word) {
+  sum(sapply(filtered_sosx, function(text) {
+    length(gregexpr(word, text)[[1]][gregexpr(word, text)[[1]] > 0])
+  }))
+})
+
+sum(word_counts)
+
+#*******************************
+# Create a vector to store positions
+positions <- c()
+
+# Search in filtered_sosy elements and find their positions in sosy
+for (i in seq_along(filtered_sosy)) {
+  position <- which(sapply(sosy, function(x) identical(filtered_sosy[[i]], x)))
+  positions <- c(positions, position)
+}
+
+# Remove duplicates
+positions <- unique(positions)
+
+# Display positions as a vector
+print(positions)
+extract_and_count_words <- function(filtered_sosy, sosy, positions, keyword) {
+    position_indices <- which(sapply(filtered_sosy, function(x) any(grepl(keyword, x))))
+    
+    if (length(position_indices) == 0) {
+        result_strings <- c("0")
+        word_counts <- c(0)
+    } else {
+        result_strings <- c()
+        
+        for (i in seq_along(position_indices)) {
+            start_pos <- positions[position_indices[i]]
+            if (i < length(position_indices)) {
+                end_pos <- positions[position_indices[i + 1]]
+            } else if (position_indices[i] == length(positions)) {
+                end_pos <- positions[position_indices[i]] + 1
+            } else {
+                end_pos <- positions[position_indices[i] + 1]
+            }
+            
+            # Numbers between start_pos and end_pos (excluding start_pos and end_pos)
+            if (start_pos + 1 < end_pos) {
+                sequence_numbers <- (start_pos + 1):(end_pos - 1)
+            } else if (start_pos < end_pos) {
+                sequence_numbers <- start_pos + 1
+            } else {
+                sequence_numbers <- integer(0)
+            }
+            
+            # Create the final string
+            if (length(sequence_numbers) > 0) {
+                result_strings <- c(result_strings, paste0("#movie-description > p:nth-child(", sequence_numbers, ")"))
+            }
+        }
+    }
+    
+    if (length(result_strings) == 1 && result_strings == "0") {
+        word_counts <- 0
+    } else {
+        # Extract and count the number of words
+        word_counts <- sapply(result_strings, function(selector) {
+            paragraph_text <- webpage %>%
+                html_elements(selector) %>%
+                html_text()
+            word_count <- strsplit(paragraph_text, "\\s+") %>%
+                unlist() %>%
+                length()
+            return(word_count)
+        })
+    }
+    
+    # Calculate the total number of words
+    total_word_count <- sum(word_counts)
+    
+    return(total_word_count)
+}
+
+# Extract and count words for different sections
+final_words <- extract_and_count_words(filtered_sosy, sosy, positions, "پایانی")
+informative_words <- extract_and_count_words(filtered_sosy, sosy, positions, "آموزنده")
+positive_negative_words <- extract_and_count_words(filtered_sosy, sosy, positions, "مثبت")
+summary_words <- extract_and_count_words(filtered_sosy, sosy, positions, "خلاصه")
+screening_words <- extract_and_count_words(filtered_sosy, sosy, positions, "اکران")
+critics_words <- extract_and_count_words(filtered_sosy, sosy, positions, "منتقدان")
+conclusion_words <- extract_and_count_words(filtered_sosy, sosy, positions, "نتیجه")
+introduction_words <- extract_and_count_words(filtered_sosy, sosy, positions, "معرفی")
+voice_actor_words <- extract_and_count_words(filtered_sosy, sosy, positions, "صدا")
+about_words <- extract_and_count_words(filtered_sosy, sosy, positions, "درباره")
+story_words <- extract_and_count_words(filtered_sosy, sosy, positions, "داستان")
+release_date_words <- extract_and_count_words(filtered_sosy, sosy, positions, "انتشار")
+review_words <- extract_and_count_words(filtered_sosy, sosy, positions, "بررسی")
+
+```
+Now, before we move on to all the features, we first want to save the IMDb ratings for all animation links in a CSV file.
+
+all_animation_links can be obtained from the main section.
+
+```{r}
+# Required libraries
+
+library(rvest)
+library(dplyr)
+
+# Function to extract animation links from a page
+extract_animation_links_from_page <- function(url) {
+  main_page <- read_html(url)
+  animation_links <- main_page %>%
+    html_elements("div.movie-slider-wrapper > div > a") %>%
+    html_attr("href")
+  
+  # Filter valid links
+  animation_links <- animation_links[grepl("^/video/v-", animation_links)]
+  
+  animation_links <- paste0("https://myket.ir", animation_links)
+  
+  return(animation_links)
+}
+
+# Function to extract animation links from all pages
+extract_all_animation_links <- function(base_url, num_pages) {
+  all_links <- c()
+  
+  for (i in 1:num_pages) {
+    page_url <- paste0(base_url, "?page=", i)
+    page_links <- extract_animation_links_from_page(page_url)
+    all_links <- c(all_links, page_links)
+  }
+  
+  return(all_links)
+}
+
+# Use the function to extract animation links from all pages
+base_url <- "https://myket.ir/video/animation"
+num_pages <- 10  # Number of desired pages
+all_animation_links <- extract_all_animation_links(base_url, num_pages)
+
+# Display animation links
+print(all_animation_links)
+
+
+```
+
+All these were steps before the main operation to simplify
