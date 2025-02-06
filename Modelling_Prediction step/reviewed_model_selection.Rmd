@@ -1,0 +1,569 @@
+---
+title: "ISL Final Project Phase II"
+author: "Pooria Assarehha"
+date: "`r Sys.Date()`"
+output: pdf_document
+editor_options: 
+  markdown: 
+    wrap: sentence
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r warning=FALSE, message=FALSE}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(corrplot)
+library(gridExtra)
+library(tidyverse)
+library(reshape2)
+library(moments)
+
+library(caret)
+```
+
+```{r}
+data_path <- "clean_data.csv"  
+data <- read.csv(data_path, stringsAsFactors = TRUE)  
+```
+
+# Data Preparation
+
+The first to columns assume no role in our estimation, they can be omitted. After reading the file each feature must take its datatype by definition.
+Then we separate out target variable from predictive features.
+
+
+```{r warning=FALSE}
+# Remove the first two columns
+data %>% select(!c(URL, Name)) -> data
+
+# Convert binary columns to factors
+for (col in names(data)){
+  if (all(unique(data[,col]) == c(0,1) )  || all(unique(data[,col]) == c(1,0)))
+    data[,col] = factor(data[,col])
+}
+
+# Define the target variable
+target <- data$Amtiaz
+
+# Remove the target variable column from the features
+features <- data %>% select(!Amtiaz)
+
+```
+
+## Exploratory Data Analysis
+
+Histograms for key numerical variables
+
+```{r, fig.width=9}
+num_cols <- c("IMDB_Link", "Amtiaz", "Number_People", "Total_Episodes")
+
+par(mfrow=c(2,2)) 
+for (col in num_cols) {
+  hist(
+    data[[col]], 
+    main=paste("Distribution of", col),
+    xlab = paste(col, "Value"),
+    col="skyblue", 
+    border="black")
+}
+```
+
+Correlation Heatmap
+
+```{r, fig.height=9, fig.width= 9}
+num_data <- data %>% select_if(is.numeric)
+corr_matrix <- cor(num_data, use="complete.obs")
+
+corrplot(
+  corr_matrix, 
+  method="color", 
+  col=colorRampPalette(c("blue", "white", "red"))(200),
+  tl.cex=0.35, tl.col="black", 
+  title="Correlation Heatmap")
+```
+Strong correlations exist between IMDB_Link, Amtiaz, and Number_People, indicating possible relationships worth exploring in modeling.
+
+Most of our features don't show any relation to target variable or any other feature.
+
+Bar chart for Categorical Features, Country distribution
+
+```{r}
+data %>%
+  ggplot(aes(x=Country)) +
+  geom_bar(fill="skyblue", color="black") +
+  theme(axis.text.x = element_text(angle=45, hjust=1)) +
+  labs(title="Distribution of Movies by Country", x="Country", y="Count")
+```
+There are Countries that only appear once in our data, hence no inference or estimation can be done with them, let's simply omit those.
+
+```{r}
+data %>%
+  group_by(Country) %>%
+  filter(n() > 1) -> data
+nrow(data)
+```
+
+
+
+Bar chart for Rade distribution
+
+```{r}
+data %>%
+  ggplot(aes(x=Rade)) +
+  geom_bar(fill="orange", color="black") +
+  theme(axis.text.x = element_text(angle=45, hjust=1)) +
+  labs(title="Distribution of Movies by Rade", x="Rade", y="Count")
+```
+
+Data Overview: The dataset contains 638 rows and 61 columns.
+There are both numerical and categorical features.
+Columns like URL, Name, and Rade are categorical, while others like IMDB_Link, Amtiaz, and Number_People are numerical.
+The dataset has no missing values after preprocessing.
+
+Numerical Features: IMDB_Link has values ranging from 2.1 to 9.3, with a mean of 6.84.
+Amtiaz ranges from 17 to 100, with a mean of 84.6.
+Number_People has high variance, ranging from 1,000 to 998,000.
+Year values range from 1940 to 2025, with most data points concentrated in recent years.
+Some numerical columns (like Total_Episodes) have skewed distributions, which might affect modeling.
+
+Categorical Features: Country and Rade should be analyzed further with frequency counts.
+Many binary genre columns (e.g., Romance, SciFi, Anime) are mostly 0s, meaning most movies don't belong to these genres.
+
+
+### Metric Functions
+We choose and define these functions to evaluate out models now on. 
+
+```{r}
+MAE <- function(model, x_test, y_test) mean(abs(predict(model, x_test)- y_test))
+MSE <- function(model, x_test, y_test) mean((predict(model, x_test)- y_test)^2)
+Rsq <- function(model, x_test, y_test) 1 - sum((predict(model, x_test)- y_test)^2)/sum((y_test - mean(y_test))^2)
+R2adj <- function(model, x_test, y_test) 1 - ((1 - Rsq(model, x_test, y_test) ) * (nrow(x_test) - 1) / (nrow(x_test) - ncol(x_test) - 1))
+```
+
+
+# Predicting Amtiaz
+
+From EDA and corr plot, we know no specific feature that has strong linear correlation with out response/target variable `Amtiaz`. This means simple linear regression won't give us a great prediction.
+
+### Simple linear regression
+
+```{r}
+set.seed(1)
+
+n <- nrow(data)
+
+
+train_idx <- sample(1:n, size = 0.9 * n)  
+test_idx <- setdiff(1:n, train_idx)  
+
+train_data <- data[train_idx, ]
+test_data  <- data[test_idx, ]
+
+
+lm_model <- lm(Amtiaz~., data = train_data)
+res = summary(lm_model)
+AIC(lm_model)
+```
+
+As of Linear Model summary, we see despite having many features, only 5 prove meaningful and there are a lot of features/parameters.
+
+## Feature Selection
+
+### Stepwise substest selection
+
+```{r}
+#res_step = step(lm_model, direction = 'both')
+best_step_lm <- lm(formula = Amtiaz ~ IMDB_Link + Country + Rade + Is_Doblele + 
+    Story_Words + Series + Adventure + Comedy + Family + Action + 
+    ShortFilm + Korean, data = train_data)
+res <- summary(best_step_lm)
+```
+
+```{r}
+results <- c(
+mean(abs(best_step_lm$residuals)),
+MAE(best_step_lm, test_data %>% select(!'Amtiaz'), test_data$Amtiaz),
+mean(best_step_lm$residuals^2),
+MSE(best_step_lm, test_data %>% select(!'Amtiaz'), test_data$Amtiaz),
+res$r.squared,
+Rsq(best_step_lm, test_data %>% select(!'Amtiaz'), test_data$Amtiaz),
+res$adj.r.squared,
+R2adj(best_step_lm, test_data %>% select(!'Amtiaz'), test_data$Amtiaz)
+)
+
+results <- round(results, 2)
+
+cat(paste(results, collapse = " | "))
+```
+### Using Lasso Selection
+
+Lasso penalization can be used to select features.
+
+```{r}
+library(glmnet)
+
+x <- model.matrix(Amtiaz ~ ., data)[, -1]
+y <- data$Amtiaz
+x_train <- x[train_idx, ]
+x_test <- x[test_idx, ]
+y_train <- y[train_idx]
+y_test <- y[test_idx]
+```
+
+```{r}
+lasso_cv <- cv.glmnet(
+  x_train, y_train, alpha = 1, # Indicating Lasso
+  lambda = 10^seq(4, -2, length = 100)
+  )
+
+plot(lasso_cv, main = "Cross Validation to find lambda")
+
+best_lambda_lasso <- lasso_cv$lambda.min
+
+cat("Optimal Lambda for Lasso: ", best_lambda_lasso, "\n")
+```
+
+```{r}
+lasso_model <- glmnet(x_train, y_train, alpha = 1, lambda = best_lambda_lasso)
+
+y_pred <- predict(lasso_model, s = best_lambda_lasso, newx = x_test)
+
+results <- c(
+MAE(lasso_model,   x_train, y_train),
+MAE(lasso_model,   x_test, y_test),
+MSE(lasso_model,   x_train, y_train),
+MSE(lasso_model,   x_test, y_test),
+Rsq(lasso_model,   x_train, y_train),
+Rsq(lasso_model,   x_test, y_test),
+R2adj(lasso_model, x_train, y_train),
+R2adj(lasso_model, x_test, y_test)
+)
+
+results <- round(results, 2)
+
+cat(paste(results, collapse = " | "))
+
+```
+
+```{r}
+results <- c(
+mean(abs(lm_model$residuals)),
+MAE(lm_model, test_data %>% select(!'Amtiaz'), test_data$Amtiaz),
+mean(lm_model$residuals^2),
+MSE(lm_model, test_data %>% select(!'Amtiaz'), test_data$Amtiaz),
+res$r.squared,
+Rsq(lm_model, test_data %>% select(!'Amtiaz'), test_data$Amtiaz),
+res$adj.r.squared,
+R2adj(lm_model, test_data %>% select(!'Amtiaz'), test_data$Amtiaz)
+)
+
+results <- round(results, 2)
+
+cat(paste(results, collapse = " | "))
+```
+
+| Model | train MAE | test MAE | train MSE |test MSE | train $R^2$ | test $R^2$ | train Adjusted $R^2$ | test Adjusted $R^2$ |
+|:----- | ------ | --- | ----- | ----- |------ | --- | ----- | ---- |
+| LinReg    | 6    | 6.9  | 81.68 | 87.44 | 0.33 | 0.01 | 0.23 | -11.25 | 
+|best_step  | 6.17 | 6.52 | 83.96 | 78.9 | 0.31 | 0.11 | 0.27 | -10.06|
+|best_lasso | 6.55 | 6.06 | 99.04 | 80.52 | 0.19 | 0.09 | 0.04 | 3.09 |
+
+As we see our Linear models (Comparing $R^2$) are doing no better job than the "Mean predictor" (mean response is the prediction for all). This means features are not predicting the response. So far our models ignored feature interactions, we can turn to models that include interactions well like trees. We know bagging can reduce the variance of trees and boosting can reduce bias. 
+
+
+
+## XG Boost
+
+```{r , warning=FALSE}
+library(xgboost)
+
+#tuning parameters nrounds(number of repetitions), eta(learning rate), max_depth(trees depth), gamma(minimum reduction in waste), colsample_bytree(feature #selection percentage for each tree), min_child_weight(minimum sample weight at nodes), subsample(sampling ratio)
+grid <- expand.grid(
+  nrounds = c(50, 100, 150),   
+  eta = c(0.01, 0.1, 0.3),     
+  max_depth = c(3, 6, 9),
+  gamma = c(0, 1, 5),          
+  colsample_bytree = c(0.5, 0.7, 1), 
+  min_child_weight = c(1, 3, 5),     
+  subsample = c(0.6, 0.8, 1)
+  )
+
+#10-fold cross-validation
+train_control <- trainControl(method = "cv", number = 10) 
+#xgb_tuned <- train(x = as.matrix(x_train), y = y_train, method = "xgbTree", trControl = train_control, tuneGrid = grid)
+#best_params <- xgb_tuned$bestTune
+#cat("Optimal Parameters for XG Boost : ",  paste(best_params, collapse = ", "), "\n")
+cat("Optimal Parameters for XG Boost : ", "50, 3, 0.1, 5, 0.5, 5, 1", "\n")
+xgb_model <- xgboost(data = x_train,
+  label = y_train,
+            nrounds = 50, #best_params$nrounds,
+                eta = 0.1,  #best_params$eta,
+          max_depth = 3,#best_params$max_depth,
+   min_child_weight = 5,  #best_params$min_child_weight,
+          subsample = 0.5,#best_params$subsample,
+   colsample_bytree = 1,  #best_params$colsample_bytree,
+  objective = "reg:squarederror")
+```
+
+
+```{r}
+results <- c(
+MAE(  xgb_model, x_train, y_train),
+MAE(  xgb_model, x_test, y_test),
+MSE(  xgb_model, x_train, y_train),
+MSE(  xgb_model, x_test, y_test),
+Rsq(  xgb_model, x_train, y_train),
+Rsq(  xgb_model, x_test, y_test),
+R2adj(xgb_model, x_train, y_train),
+R2adj(xgb_model, x_test, y_test)
+)
+
+results <- round(results, 2)
+
+cat(paste(results, collapse = " | "))
+```
+
+Optimal Parameters for XG Boost :  50, 3, 0.1, 5, 0.5, 5, 1 
+MSE for XG Boost :  111.038 
+MAE for XG Boost :  7.076772 
+R2 for XG Boost :  0.1469957
+
+| Model | train MAE | test MAE | train MSE |test MSE | train $R^2$ | test $R^2$ | train Adjusted $R^2$ | test Adjusted $R^2$ |
+|:--------  | ---- | ---  | ----- | ----- |------| ---- | -----| ----- |
+| LinReg    | 6    | 6.9  | 81.68 | 87.44 | 0.33 | 0.01 | 0.23 | -11.25| 
+| best_step | 6.17 | 6.52 | 83.96 | 78.9  | 0.31 | 0.11 | 0.27 | -10.06|
+| best_lasso| 6.55 | 6.06 | 99.04 | 80.52 | 0.19 | 0.09 | 0.04 | 3.09  |
+| XGBoost   | 4.47 | 6.12 | 46.26 | 67.16 | 0.62 | 0.24 | 0.55 | 2.74  |
+
+Significant Improvement from XGBoost currently the best candidate. 
+
+### Random forest No Boost
+
+```{r}
+library(randomForest)
+library(tidyverse)
+library(caret)
+
+rf_model <- randomForest(Amtiaz ~ ., data = train_data, ntree = 100, mtry = 13, importance = TRUE)
+print(rf_model)
+
+results <- c(
+MAE(  rf_model, train_data %>% select(!'Amtiaz'), train_data$Amtiaz),
+MAE(  rf_model, test_data %>% select(!'Amtiaz'), test_data$Amtiaz),
+MSE(  rf_model, train_data %>% select(!'Amtiaz'), train_data$Amtiaz),
+MSE(  rf_model, test_data %>% select(!'Amtiaz'), test_data$Amtiaz),
+Rsq(  rf_model, train_data %>% select(!'Amtiaz'), train_data$Amtiaz),
+Rsq(  rf_model, test_data %>% select(!'Amtiaz'), test_data$Amtiaz),
+R2adj(rf_model, train_data %>% select(!'Amtiaz'), train_data$Amtiaz),
+R2adj(rf_model, test_data %>% select(!'Amtiaz'), test_data$Amtiaz)
+)
+
+results <- round(results, 2)
+
+cat(paste(results, collapse = " | "))
+```
+| Model | train MAE | test MAE | train MSE |test MSE | train $R^2$ | test $R^2$ | train Adjusted $R^2$ | test Adjusted $R^2$ |
+|:--------  | ---- | ---  | ----- | ----- |------| ---- | -----| ----- |
+| LinReg    | 6    | 6.9  | 81.68 | 87.44 | 0.33 | 0.01 | 0.23 | -11.25| 
+| best_step | 6.17 | 6.52 | 83.96 | 78.9  | 0.31 | 0.11 | 0.27 | -10.06|
+| best_lasso| 6.55 | 6.06 | 99.04 | 80.52 | 0.19 | 0.09 | 0.04 | 3.09  |
+| XGBoost   | 4.47 | 6.12 | 46.26 | 67.16 | 0.62 | 0.24 | 0.55 | 2.74  |
+| RandomFrst| 5.44 | 6.02 | 69.57 | 76.25 | 0.43 | 0.14 | 0.37 | -9.69 |
+| tuned_RF  | 2.97 | 5.78 | 21.74 | 66.29 | 0.82 | 0.25 | 0.8 | -8.29 |
+
+
+```{r}
+tuned_rf <- tuneRF(train_data[-which(names(train_data) == "Amtiaz")], train_data$Amtiaz, stepFactor = 1.5, improve = 0.01, ntreeTry = 100)
+print(tuned_rf)
+```
+
+```{r}
+importance(rf_model)
+varImpPlot(rf_model)
+```
+
+### SVR
+
+This Model needs separate data prep
+
+```{r}
+library(e1071)
+library(caret)
+library(dplyr)
+```
+
+```{r}
+data = 'clean_data.csv'
+data <- read.csv(data, stringsAsFactors = TRUE)
+
+data %>%
+  group_by(Country) %>%
+  filter(n() > 1) -> data
+nrow(data)
+
+# Remove the first two columns
+data %>% select(!c(URL, Name)) -> data
+```
+
+```{r}
+# Convert columns 
+data$Country <- as.factor(data$Country)
+data$Rade <- as.factor(data$Rade)
+data$Amtiaz <- as.numeric(data$Amtiaz)
+data$Year <- as.numeric(data$Year)
+data$IMDB_Link <- as.numeric(data$IMDB_Link)
+# Convert categorical variables to dummy variables
+data <- dummyVars(~ ., data = data) %>% predict(data) %>% as.data.frame()
+```
+
+Split the data into features and target
+
+```{r}
+target <- "Amtiaz"
+predictors <- setdiff(names(data), target)
+```
+
+train,test
+
+```{r, warning=FALSE}
+set.seed(1)
+train_index <- sample(1:nrow(data), size = 0.7 * nrow(data))
+svr_train_data <- data[train_index, ]
+svr_test_data <- data[-train_index, ]
+
+# Scale numerical features
+preproc <- preProcess(svr_train_data[, predictors], method = c("center", "scale"))
+train_data_scaled <- predict(preproc, svr_train_data)
+test_data_scaled <- predict(preproc, svr_test_data)
+
+train_data_scaled$Amtiaz <- svr_train_data$Amtiaz
+test_data_scaled$Amtiaz <- svr_test_data$Amtiaz
+```
+
+```{r, warning=FALSE}
+svr_model <- svm(Amtiaz ~ ., data = train_data_scaled, kernel = "radial", cost = 1, gamma = 0.1)
+
+plot(svr_model, train_data_scaled)
+summary(svr_model)
+```
+
+```{r}
+
+results <- c(
+MAE(  svr_model, train_data_scaled %>% select(!'Amtiaz'), train_data_scaled$Amtiaz),
+MAE(  svr_model,  test_data_scaled %>% select(!'Amtiaz'),  test_data_scaled$Amtiaz),
+MSE(  svr_model, train_data_scaled %>% select(!'Amtiaz'), train_data_scaled$Amtiaz),
+MSE(  svr_model,  test_data_scaled %>% select(!'Amtiaz'),  test_data_scaled$Amtiaz),
+Rsq(  svr_model, train_data_scaled %>% select(!'Amtiaz'), train_data_scaled$Amtiaz),
+Rsq(  svr_model,  test_data_scaled %>% select(!'Amtiaz'),  test_data_scaled$Amtiaz),
+R2adj(svr_model, train_data_scaled %>% select(!'Amtiaz'), train_data_scaled$Amtiaz),
+R2adj(svr_model,  test_data_scaled %>% select(!'Amtiaz'),  test_data_scaled$Amtiaz)
+)
+
+results <- round(results, 2)
+
+cat(paste(results, collapse = " | "))
+
+predictions <- predict(svr_model,test_data_scaled)
+# Plot actual vs predicted values
+plot(test_data_scaled$Amtiaz, predictions, 
+     xlab = "Actual Amtiaz", ylab = "Predicted Amtiaz",
+     main = "SVR Predictions vs. Actual Values",
+     col = "green", pch = 16)
+abline(0, 1, col = "red", lwd = 2)
+```
+
+```{r, warning=FALSE}
+tuned <- tune(svm, Amtiaz ~ ., data = train_data_scaled, kernel = "radial", ranges = list(cost =c(0.1, 1, 10), gamma = c(0.01, 0.1, 1)))
+best_model <- tuned$best.model
+summary(best_model)
+```
+```{r}
+results <- c(
+MAE(  best_model, train_data_scaled %>% select(!'Amtiaz'), train_data_scaled$Amtiaz),
+MAE(  best_model,  test_data_scaled %>% select(!'Amtiaz'),  test_data_scaled$Amtiaz),
+MSE(  best_model, train_data_scaled %>% select(!'Amtiaz'), train_data_scaled$Amtiaz),
+MSE(  best_model,  test_data_scaled %>% select(!'Amtiaz'),  test_data_scaled$Amtiaz),
+Rsq(  best_model, train_data_scaled %>% select(!'Amtiaz'), train_data_scaled$Amtiaz),
+Rsq(  best_model,  test_data_scaled %>% select(!'Amtiaz'),  test_data_scaled$Amtiaz),
+R2adj(best_model, train_data_scaled %>% select(!'Amtiaz'), train_data_scaled$Amtiaz),
+R2adj(best_model,  test_data_scaled %>% select(!'Amtiaz'),  test_data_scaled$Amtiaz)
+)
+
+results <- round(results, 2)
+
+cat(paste(results, collapse = " | "))
+```
+| Model | train MAE | test MAE | train MSE |test MSE | train $R^2$ | test $R^2$ | train Adjusted $R^2$ | test Adjusted $R^2$ |
+|:--------  | ---- | ---  | ----- | ----- |------| ---- | -----| ----- |
+| LinReg    | 6    | 6.9  | 81.68 | 87.44 | 0.33 | 0.01 | 0.23 | -11.25| 
+| best_step | 6.17 | 6.52 | 83.96 | 78.9  | 0.31 | 0.11 | 0.27 | -10.06|
+| best_lasso| 6.55 | 6.06 | 99.04 | 80.52 | 0.19 | 0.09 | 0.04 | 3.09  |
+| XGBoost   | 4.47 | 6.12 | 46.26 | 67.16 | 0.62 | 0.24 | 0.55 | 2.74  |
+| RandomFrst| 5.44 | 6.02 | 69.57 | 76.25 | 0.43 | 0.14 | 0.37 | -9.69 |
+| tuned_RF  | 2.97 | 5.78 | 21.74 | 66.29 | 0.82 | 0.25 | 0.8  | -8.29 |
+| SVR       | 5.82 | 6.43 | 118.31| 105.28| 0.07 | -0.03| -0.18| -0.99 |
+| tuned SVR | 4.55 | 6.39 | 91.22 | 97.47 | 0.28 | 0.05 | 0.09 | -0.85 |
+
+### Neural Network
+An extensive notebook on fitting a neural network is given in python.
+
+
+```{r , warning=FALSE, message=FALSE, results='hide'}
+library(keras)
+NN_model = keras_model_sequential() %>%
+  layer_dense(units = 128, activation = "relu", input_shape = dim(x_train)[2] ) %>%
+  layer_dense(units = 60, activation = "relu",) %>%
+  layer_dense(units = 15, activation = "relu",) %>%
+  layer_dense(units = 1)
+
+NN_model %>% compile(
+  optimizer = "adam",
+  loss = "mse"
+)
+
+summary(NN_model)
+
+history = NN_model %>% fit(
+  x_train, y_train,
+  epochs = 50, batch_size = 16,
+  validation_data = list(x_test, y_test),
+)
+```
+
+
+
+```{r, message=FALSE}
+results <- c(
+MAE(  NN_model, x_train, y_train),
+MAE(  NN_model, x_test, y_test),
+MSE(  NN_model, x_train, y_train),
+MSE(  NN_model, x_test, y_test),
+Rsq(  NN_model, x_train, y_train),
+Rsq(  NN_model, x_test, y_test),
+R2adj(NN_model, x_train, y_train),
+R2adj(NN_model, x_test, y_test)
+)
+
+results <- round(results, 2)
+
+cat(paste(results, collapse = " | "))
+```
+| Model | train MAE | test MAE | train MSE |test MSE | train $R^2$ | test $R^2$ | train Adjusted $R^2$ | test Adjusted $R^2$ |
+|:--------  | ---- | ---  | ----- | ----- |------| ---- | -----| ----- |
+| LinReg    | 6    | 6.9  | 81.68 | 87.44 | 0.33 | 0.01 | 0.23 | -11.25| 
+| best_step | 6.17 | 6.52 | 83.96 | 78.9  | 0.31 | 0.11 | 0.27 | -10.06|
+| best_lasso| 6.55 | 6.06 | 99.04 | 80.52 | 0.19 | 0.09 | 0.04 | 3.09  |
+| XGBoost   | 4.47 | 6.12 | 46.26 | 67.16 | 0.62 | 0.24 | 0.55 | 2.74  |
+| RandomFrst| 5.44 | 6.02 | 69.57 | 76.25 | 0.43 | 0.14 | 0.37 | -9.69 |
+| tuned_RF  | 2.97 | 5.78 | 21.74 | 66.29 | 0.82 | 0.25 | 0.8  | -8.29 |
+| SVR       | 5.82 | 6.43 | 118.31| 105.28| 0.07 | -0.03| -0.18| -0.99 |
+| tuned SVR | 4.55 | 6.39 | 91.22 | 97.47 | 0.28 | 0.05 | 0.09 | -0.85 |
+| Neural Net| 12.13| 13.29| 266.01 | 301.92 | -1.17 | -2.41 | -1.58 | 8.84 |
+
+Neural Net when not tuned, performs worse.
