@@ -14,7 +14,7 @@ library(readr)
 clean_data <- read_csv("C:/Users/USER/Downloads/clean_data.csv")
 data <- clean_data
 ```
-
+a)
 
 ```{r}
 # بارگذاری کتابخانه‌های مورد نیاز
@@ -142,6 +142,9 @@ varImpPlot(model)
 
 
 "The conclusion from the XGBoost model using the Breakdown chart indicates that features such as IMDB Link, Number of People, Total Words, and Year have the greatest impact on predicting animation scores. Features with positive effects have increased the predicted value, while features with negative effects have decreased it
+
+b)
+In the EDA section, we also observed in the heatmap that the IMDB link variable has the highest correlation with the response variable. Intuitively, we realized that this variable has the greatest share in predicting the response variable, which is confirmed by the interpretation results
 
 
 
