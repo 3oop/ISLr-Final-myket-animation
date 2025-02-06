@@ -53,8 +53,8 @@ url = "https://myket.ir/video/list/automated_genre_animation_2023"
 driver.get(url)
 
 # Add a wait time for the page to fully load and observe changes
-print("مرورگر باز شد. تغییرات لازم را اعمال کنید. 30 ثانیه زمان دارید...")
-time.sleep(30)  # Wait time for manual changes
+print("مرورگر باز شد. تغییرات لازم را اعمال کنید. 35 ثانیه زمان دارید...")
+time.sleep(35)  # Wait time for manual changes
 
 # Extract animation links
 elements = driver.find_elements(By.CSS_SELECTOR, "#main-Content a")
