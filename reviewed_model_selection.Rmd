@@ -154,18 +154,6 @@ From EDA and corr plot, we know no specific feature that has strong linear corre
 
 ```{r}
 set.seed(1)
-n <- nrow(data)
-train_idx <- sample(1:n, size = 0.7 * n)  
-remaining_idx <- setdiff(1:n, train_idx)  
-valid_idx <- sample(remaining_idx, size = 0.15 * n)  
-test_idx <- setdiff(remaining_idx, valid_idx)  
-train_data <- data[train_idx, ]
-valid_data <- data[valid_idx, ]
-test_data  <- data[test_idx, ]
-```
-
-```{r}
-set.seed(1)
 
 n <- nrow(data)
 
@@ -223,13 +211,11 @@ x <- model.matrix(Amtiaz ~ ., data)[, -1]
 y <- data$Amtiaz
 x_train <- x[train_idx, ]
 x_test <- x[test_idx, ]
-x_valid <- x[valid_idx, ]
 y_train <- y[train_idx]
 y_test <- y[test_idx]
-y_valid <- y[valid_idx]
-  
+```
 
-
+```{r}
 lasso_cv <- cv.glmnet(
   x_train, y_train, alpha = 1, # Indicating Lasso
   lambda = 10^seq(4, -2, length = 100)
@@ -264,18 +250,6 @@ cat(paste(results, collapse = " | "))
 
 ```
 
-
-### Metric Functions
-We choose and define these functions to evaluate out models now on. 
-
-```{r}
-MAE <- function(model, x_test, y_test) mean(abs(predict(model, x_test)- y_test))
-MSE <- function(model, x_test, y_test) mean((predict(model, x_test)- y_test)^2)
-Rsq <- function(model, x_test, y_test) 1 - sum((predict(model, x_test)- y_test)^2)/sum((y_test - mean(y_test))^2)
-R2adj <- function(model, x_test, y_test) 1 - ((1 - Rsq(model, x_test, y_test) ) * (nrow(x_test) - 1) / (nrow(x_test) - ncol(x_test) - 1))
-```
-
-
 ```{r}
 results <- c(
 mean(abs(lm_model$residuals)),
@@ -305,7 +279,7 @@ As we see our Linear models (Comparing $R^2$) are doing no better job than the "
 
 ## XG Boost
 
-```{r}
+```{r , warning=FALSE}
 library(xgboost)
 
 #tuning parameters nrounds(number of repetitions), eta(learning rate), max_depth(trees depth), gamma(minimum reduction in waste), colsample_bytree(feature #selection percentage for each tree), min_child_weight(minimum sample weight at nodes), subsample(sampling ratio)
@@ -321,223 +295,87 @@ grid <- expand.grid(
 
 #10-fold cross-validation
 train_control <- trainControl(method = "cv", number = 10) 
-xgb_tuned <- train(x = as.matrix(x_train), y = y_train, method = "xgbTree", trControl = train_control, tuneGrid = grid)
-best_params <- xgb_tuned$bestTune
-cat("Optimal Parameters for XG Boost : ",  paste(best_params, collapse = ", "), "\n")
-
+#xgb_tuned <- train(x = as.matrix(x_train), y = y_train, method = "xgbTree", trControl = train_control, tuneGrid = grid)
+#best_params <- xgb_tuned$bestTune
+#cat("Optimal Parameters for XG Boost : ",  paste(best_params, collapse = ", "), "\n")
+cat("Optimal Parameters for XG Boost : ", "50, 3, 0.1, 5, 0.5, 5, 1", "\n")
 xgb_model <- xgboost(data = x_train,
   label = y_train,
-  nrounds = best_params$nrounds,
-  eta = best_params$eta,
-  max_depth = best_params$max_depth,
-  min_child_weight = best_params$min_child_weight,
-  subsample = best_params$subsample,
-  colsample_bytree = best_params$colsample_bytree,
+            nrounds = 50, #best_params$nrounds,
+                eta = 0.1,  #best_params$eta,
+          max_depth = 3,#best_params$max_depth,
+   min_child_weight = 5,  #best_params$min_child_weight,
+          subsample = 0.5,#best_params$subsample,
+   colsample_bytree = 1,  #best_params$colsample_bytree,
   objective = "reg:squarederror")
-
-pred_xgb <- predict(xgb_model, x_valid)
-sse_xgb <- sum((pred_xgb - valid_data$Amtiaz)^2)
-mse_xgb <- mean((pred_xgb - valid_data$Amtiaz)^2)
-mae_xgb <- mean(abs(pred_xgb - valid_data$Amtiaz))
-r2_xgb <- 1 - sse_xgb/sst
-cat("MSE for XG Boost : ", mse_xgb, "\n")
-cat("MAE for XG Boost : ", mae_xgb, "\n")
-cat("R2 for XG Boost : ", r2_xgb, "\n")
 ```
+
+
+```{r}
+results <- c(
+MAE(  xgb_model, x_train, y_train),
+MAE(  xgb_model, x_test, y_test),
+MSE(  xgb_model, x_train, y_train),
+MSE(  xgb_model, x_test, y_test),
+Rsq(  xgb_model, x_train, y_train),
+Rsq(  xgb_model, x_test, y_test),
+R2adj(xgb_model, x_train, y_train),
+R2adj(xgb_model, x_test, y_test)
+)
+
+results <- round(results, 2)
+
+cat(paste(results, collapse = " | "))
+```
+
 Optimal Parameters for XG Boost :  50, 3, 0.1, 5, 0.5, 5, 1 
 MSE for XG Boost :  111.038 
 MAE for XG Boost :  7.076772 
 R2 for XG Boost :  0.1469957
 
 | Model | train MAE | test MAE | train MSE |test MSE | train $R^2$ | test $R^2$ | train Adjusted $R^2$ | test Adjusted $R^2$ |
-|:----- | ------ | --- | ----- | ----- |------ | --- | ----- | ---- |
-| LinReg    | 6    | 6.9  | 81.68 | 87.44 | 0.33 | 0.01 | 0.23 | -11.25 | 
-|best_step  | 6.17 | 6.52 | 83.96 | 78.9 | 0.31 | 0.11 | 0.27 | -10.06|
-|best_lasso | 6.55 | 6.06 | 99.04 | 80.52 | 0.19 | 0.09 | 0.04 | 3.09 |
-|xgboost    |     | 7.07 |      | 111.03  |     | 0.14 |    |     |   |
+|:--------  | ---- | ---  | ----- | ----- |------| ---- | -----| ----- |
+| LinReg    | 6    | 6.9  | 81.68 | 87.44 | 0.33 | 0.01 | 0.23 | -11.25| 
+| best_step | 6.17 | 6.52 | 83.96 | 78.9  | 0.31 | 0.11 | 0.27 | -10.06|
+| best_lasso| 6.55 | 6.06 | 99.04 | 80.52 | 0.19 | 0.09 | 0.04 | 3.09  |
+| XGBoost   | 4.47 | 6.12 | 46.26 | 67.16 | 0.62 | 0.24 | 0.55 | 2.74  |
 
-There is an improvement in R^2 but an increase in MSE?
+Significant Improvement from XGBoost currently the best candidate. 
 
-
-"""
-
-### Using feature importance
-
-```{r}
-# Load required libraries
-library(randomForest)
-
-# Train the random forest model and calculate feature importance
-rf_model <- randomForest(features, target, importance = TRUE, na.action = na.omit)
-
-# Extract feature importance
-importance <- importance(rf_model)
-importance_data <- data.frame(Feature = rownames(importance), Importance = importance[, 1])
-
-# Sort features by importance
-importance_data <- importance_data[order(-importance_data$Importance), ]
-
-# Display important features
-print("Feature Importance:")
-print(importance_data)
-
-# Select the top n features (e.g., top 10 features)
-top_n <- 10
-top_features <- importance_data$Feature[1:top_n]
-
-
-# Create a new dataset with important features
-final_data <- data[, c(top_features, 'Amtiaz')]
-
-#! Skip writing to file, loading it again requires it to be prepared again
-#desktop_path <- file.path(Sys.getenv("USERPROFILE"), "Desktop", "final_data")
-
-# Save the data to a CSV file on the desktop
-#write_csv(final_data, desktop_path)
-
-# Display confirmation message
-#print("The data has been successfully saved to a CSV file on the desktop. To use Selecet data, load fainal_data.csv from current directory.")
-
-```
-
-
-
-# Model Map
-
-
-### GAM
-```{r}
-library(mgcv)
-library(caret)
-library(dplyr)
-library(ggplot2)
-```
-
-```{r}
-data = 'clean_data.csv'
-data <- read.csv(data, stringsAsFactors = TRUE)
-```
-
-```{r}
-data$Country <- factor(data$Country)
-data$Rade <- factor(data$Rade)
-data$Country <- factor(data$Country, levels = unique(data$Country))
-data$Rade <- factor(data$Rade, levels = unique(data$Rade))
-data$Year <- as.numeric(data$Year)
-data$Amtiaz <- as.numeric(data$Amtiaz)
-data$IMDB_Link <- as.numeric(data$IMDB_Link)
-## Identify binary variables and convert them to factors
-#binary_vars <- setdiff(names(data), c("Country", "Rade", "Year", "Amtiaz", "IMDB_Link"))
-#data[binary_vars] <- lapply(data[binary_vars], as.factor)
-```
-
-```{r}
-set.seed(123)
-train_index <- sample(1:nrow(data), size = floor(0.8 * nrow(data)), replace = FALSE)
-train_data <- data[train_index, ]
-test_data <- data[-train_index, ]
-
-# Align test set factor levels with training set
-test_data$Country <- factor(test_data$Country, levels = levels(train_data$Country))
-test_data$Rade <- factor(test_data$Rade, levels = levels(train_data$Rade))
-```
-
-```{r}
-gam_model <- gam(Amtiaz ~ s(Year) + s(IMDB_Link) + Country + Rade, data=train_data, method ="REML")
-
-summary(gam_model)
-```
-
-```{r}
-test_predictions <- predict(gam_model, newdata = test_data)
-
-# Calculate test MSE and R-squared
-mse_test <- mean((test_predictions - test_data$Amtiaz)^2)
-rsq_test <- 1 - sum((test_predictions - test_data$Amtiaz)^2) / sum((mean(test_data$Amtiaz) - test_data$Amtiaz)^2)
-
-
-train_predictions <- predict(gam_model, newdata = train_data)
-
-# Calculate training MSE and R-squared
-mse_train <- mean((train_predictions - train_data$Amtiaz)^2)
-rsq_train <- 1 - sum((train_predictions - train_data$Amtiaz)^2) / sum((mean(train_data$Amtiaz) - train_data$Amtiaz)^2)
-
-print(paste("Test Mean Squared Error:", mse_test))
-print(paste("Test R-squared:", rsq_test))
-print(paste("Train Mean Squared Error:", mse_train))
-print(paste("Train R-squared:", rsq_train))
-```
-
-```{r}
-plot(gam_model, pages = 1, shade = TRUE, col = "blue")
-
-par(mfrow = c(2, 2))
-gam.check(gam_model)
-```
-
-```{r}
-ata.frame(Actual = test_data$Amtiaz, Predicted = test_predictions), 
-       aes(x = Actual, y = Predicted)) +
-  geom_point(color = "blue") +
-  geom_abline(intercept = 0, slope = 1, col = "red", linetype = "dashed") +
-  labs(title = "GAM Predictions vs. Actual Values",
-       x = "Actual Amtiaz",
-       y = "Predicted Amtiaz") +
-  theme_minimal()
-```
-
-
-
-### Random forest
+### Random forest No Boost
 
 ```{r}
 library(randomForest)
 library(tidyverse)
 library(caret)
-```
 
-```{r}
-data = 'clean_data.csv'
-data <- read.csv(data, stringsAsFactors = TRUE)
-```
-
-```{r}
-# Convert columns 
-data$Country <- as.factor(data$Country)
-data$Rade <- as.factor(data$Rade)
-data$Year <- as.numeric(data$Year)
-data$Amtiaz <- as.numeric(data$Amtiaz)
-data$IMDB_Link <- as.numeric(data$IMDB_Link)
-# Convert all other binary variables to factor
-#binary_vars <- setdiff(names(data), c("Country", "Rade", "Year", "Amtiaz", "IMDB_Link"))
-#data[binary_vars] <- lapply(data[binary_vars], as.factor)
-```
-
-```{r}
-set.seed(123)
-train_index <- sample(1:nrow(data), size = floor(0.8 * nrow(data)), replace = FALSE)
-train_data <- data[train_index, ]
-test_data <- data[-train_index, ]
-```
-
-```{r}
-target <- "Amtiaz"
-predictors <- setdiff(names(data), target)
-```
-
-```{r}
-rf_model <- randomForest(Amtiaz ~ ., data = train_data, ntree = 100, mtry = 3, importance = TRUE)
+rf_model <- randomForest(Amtiaz ~ ., data = train_data, ntree = 100, mtry = 13, importance = TRUE)
 print(rf_model)
-```
 
-```{r}
-predictions <- predict(rf_model, test_data)
-head(predictions)
+results <- c(
+MAE(  rf_model, train_data %>% select(!'Amtiaz'), train_data$Amtiaz),
+MAE(  rf_model, test_data %>% select(!'Amtiaz'), test_data$Amtiaz),
+MSE(  rf_model, train_data %>% select(!'Amtiaz'), train_data$Amtiaz),
+MSE(  rf_model, test_data %>% select(!'Amtiaz'), test_data$Amtiaz),
+Rsq(  rf_model, train_data %>% select(!'Amtiaz'), train_data$Amtiaz),
+Rsq(  rf_model, test_data %>% select(!'Amtiaz'), test_data$Amtiaz),
+R2adj(rf_model, train_data %>% select(!'Amtiaz'), train_data$Amtiaz),
+R2adj(rf_model, test_data %>% select(!'Amtiaz'), test_data$Amtiaz)
+)
 
-# For regression tasks, Mean Squared Error (MSE)
-mse <- mean((predictions - test_data$Amtiaz)^2)
-print(paste("Mean Squared Error:", mse))
+results <- round(results, 2)
+
+cat(paste(results, collapse = " | "))
 ```
+| Model | train MAE | test MAE | train MSE |test MSE | train $R^2$ | test $R^2$ | train Adjusted $R^2$ | test Adjusted $R^2$ |
+|:--------  | ---- | ---  | ----- | ----- |------| ---- | -----| ----- |
+| LinReg    | 6    | 6.9  | 81.68 | 87.44 | 0.33 | 0.01 | 0.23 | -11.25| 
+| best_step | 6.17 | 6.52 | 83.96 | 78.9  | 0.31 | 0.11 | 0.27 | -10.06|
+| best_lasso| 6.55 | 6.06 | 99.04 | 80.52 | 0.19 | 0.09 | 0.04 | 3.09  |
+| XGBoost   | 4.47 | 6.12 | 46.26 | 67.16 | 0.62 | 0.24 | 0.55 | 2.74  |
+| RandomFrst| 5.44 | 6.02 | 69.57 | 76.25 | 0.43 | 0.14 | 0.37 | -9.69 |
+| tuned_RF  | 2.97 | 5.78 | 21.74 | 66.29 | 0.82 | 0.25 | 0.8 | -8.29 |
+
 
 ```{r}
 tuned_rf <- tuneRF(train_data[-which(names(train_data) == "Amtiaz")], train_data$Amtiaz, stepFactor = 1.5, improve = 0.01, ntreeTry = 100)
@@ -549,12 +387,9 @@ importance(rf_model)
 varImpPlot(rf_model)
 ```
 
-```{r}
-rsq <- 1 - sum((predictions - test_data$Amtiaz)^2) / sum((mean(test_data$Amtiaz) - test_data$Amtiaz)^2)
-print(paste("R-squared:", rsq))
-```
-
 ### SVR
+
+This Model needs separate data prep
 
 ```{r}
 library(e1071)
@@ -565,6 +400,14 @@ library(dplyr)
 ```{r}
 data = 'clean_data.csv'
 data <- read.csv(data, stringsAsFactors = TRUE)
+
+data %>%
+  group_by(Country) %>%
+  filter(n() > 1) -> data
+nrow(data)
+
+# Remove the first two columns
+data %>% select(!c(URL, Name)) -> data
 ```
 
 ```{r}
@@ -583,30 +426,26 @@ Split the data into features and target
 ```{r}
 target <- "Amtiaz"
 predictors <- setdiff(names(data), target)
-
-# or
-#features <- data[,-which(names(data) == "Amtiaz")]
-#target <- data$Amtiaz
 ```
 
 train,test
 
-```{r}
-set.seed(123)
-train_index <- sample(1:nrow(data), size = floor(0.8 * nrow(data)), replace = FALSE)
-train_data <- data[train_index, ]
-test_data <- data[-train_index, ]
+```{r, warning=FALSE}
+set.seed(1)
+train_index <- sample(1:nrow(data), size = 0.7 * nrow(data))
+svr_train_data <- data[train_index, ]
+svr_test_data <- data[-train_index, ]
 
 # Scale numerical features
-preproc <- preProcess(train_data[, predictors], method = c("center", "scale"))
-train_data_scaled <- predict(preproc, train_data)
-test_data_scaled <- predict(preproc, test_data)
+preproc <- preProcess(svr_train_data[, predictors], method = c("center", "scale"))
+train_data_scaled <- predict(preproc, svr_train_data)
+test_data_scaled <- predict(preproc, svr_test_data)
 
-train_data_scaled$Amtiaz <- train_data$Amtiaz
-test_data_scaled$Amtiaz <- test_data$Amtiaz
+train_data_scaled$Amtiaz <- svr_train_data$Amtiaz
+test_data_scaled$Amtiaz <- svr_test_data$Amtiaz
 ```
 
-```{r}
+```{r, warning=FALSE}
 svr_model <- svm(Amtiaz ~ ., data = train_data_scaled, kernel = "radial", cost = 1, gamma = 0.1)
 
 plot(svr_model, train_data_scaled)
@@ -614,15 +453,23 @@ summary(svr_model)
 ```
 
 ```{r}
+
+results <- c(
+MAE(  svr_model, train_data_scaled %>% select(!'Amtiaz'), train_data_scaled$Amtiaz),
+MAE(  svr_model,  test_data_scaled %>% select(!'Amtiaz'),  test_data_scaled$Amtiaz),
+MSE(  svr_model, train_data_scaled %>% select(!'Amtiaz'), train_data_scaled$Amtiaz),
+MSE(  svr_model,  test_data_scaled %>% select(!'Amtiaz'),  test_data_scaled$Amtiaz),
+Rsq(  svr_model, train_data_scaled %>% select(!'Amtiaz'), train_data_scaled$Amtiaz),
+Rsq(  svr_model,  test_data_scaled %>% select(!'Amtiaz'),  test_data_scaled$Amtiaz),
+R2adj(svr_model, train_data_scaled %>% select(!'Amtiaz'), train_data_scaled$Amtiaz),
+R2adj(svr_model,  test_data_scaled %>% select(!'Amtiaz'),  test_data_scaled$Amtiaz)
+)
+
+results <- round(results, 2)
+
+cat(paste(results, collapse = " | "))
+
 predictions <- predict(svr_model,test_data_scaled)
-head(predictions)
-
-mse <- mean((predictions - test_data_scaled$Amtiaz)^2)
-print(paste("Mean Squared Error:", mse))
-
-r2 <- cor(predictions, test_data_scaled$Amtiaz)^2
-print(paste("R-squared:", r2))
-
 # Plot actual vs predicted values
 plot(test_data_scaled$Amtiaz, predictions, 
      xlab = "Actual Amtiaz", ylab = "Predicted Amtiaz",
@@ -631,106 +478,93 @@ plot(test_data_scaled$Amtiaz, predictions,
 abline(0, 1, col = "red", lwd = 2)
 ```
 
-```{r}
-tuned <- tune(svm, Amtiaz ~ ., data = train_data_scaled,kernel = "radial", ranges = list(cost =c(0.1, 1, 10), gamma = c(0.01, 0.1, 1)))
+```{r, warning=FALSE}
+tuned <- tune(svm, Amtiaz ~ ., data = train_data_scaled, kernel = "radial", ranges = list(cost =c(0.1, 1, 10), gamma = c(0.01, 0.1, 1)))
 best_model <- tuned$best.model
 summary(best_model)
 ```
-
-# Neural Network
 ```{r}
-library(keras3)
-RNN_model = keras_model_sequential() %>%
-  layer_simple_rnn(units = 10, activation = "relu", input_shape = c(1350, 1)) %>%
+results <- c(
+MAE(  best_model, train_data_scaled %>% select(!'Amtiaz'), train_data_scaled$Amtiaz),
+MAE(  best_model,  test_data_scaled %>% select(!'Amtiaz'),  test_data_scaled$Amtiaz),
+MSE(  best_model, train_data_scaled %>% select(!'Amtiaz'), train_data_scaled$Amtiaz),
+MSE(  best_model,  test_data_scaled %>% select(!'Amtiaz'),  test_data_scaled$Amtiaz),
+Rsq(  best_model, train_data_scaled %>% select(!'Amtiaz'), train_data_scaled$Amtiaz),
+Rsq(  best_model,  test_data_scaled %>% select(!'Amtiaz'),  test_data_scaled$Amtiaz),
+R2adj(best_model, train_data_scaled %>% select(!'Amtiaz'), train_data_scaled$Amtiaz),
+R2adj(best_model,  test_data_scaled %>% select(!'Amtiaz'),  test_data_scaled$Amtiaz)
+)
+
+results <- round(results, 2)
+
+cat(paste(results, collapse = " | "))
+```
+| Model | train MAE | test MAE | train MSE |test MSE | train $R^2$ | test $R^2$ | train Adjusted $R^2$ | test Adjusted $R^2$ |
+|:--------  | ---- | ---  | ----- | ----- |------| ---- | -----| ----- |
+| LinReg    | 6    | 6.9  | 81.68 | 87.44 | 0.33 | 0.01 | 0.23 | -11.25| 
+| best_step | 6.17 | 6.52 | 83.96 | 78.9  | 0.31 | 0.11 | 0.27 | -10.06|
+| best_lasso| 6.55 | 6.06 | 99.04 | 80.52 | 0.19 | 0.09 | 0.04 | 3.09  |
+| XGBoost   | 4.47 | 6.12 | 46.26 | 67.16 | 0.62 | 0.24 | 0.55 | 2.74  |
+| RandomFrst| 5.44 | 6.02 | 69.57 | 76.25 | 0.43 | 0.14 | 0.37 | -9.69 |
+| tuned_RF  | 2.97 | 5.78 | 21.74 | 66.29 | 0.82 | 0.25 | 0.8  | -8.29 |
+| SVR       | 5.82 | 6.43 | 118.31| 105.28| 0.07 | -0.03| -0.18| -0.99 |
+| tuned SVR | 4.55 | 6.39 | 91.22 | 97.47 | 0.28 | 0.05 | 0.09 | -0.85 |
+
+### Neural Network
+An extensive notebook on fitting a neural network is given in python.
+
+
+```{r , warning=FALSE}
+library(keras)
+NN_model = keras_model_sequential() %>%
+  layer_dense(units = 128, activation = "relu", input_shape = dim(x_train)[2] ) %>%
+  layer_dense(units = 60, activation = "relu",) %>%
+  layer_dense(units = 15, activation = "relu",) %>%
   layer_dense(units = 1)
 
-RNN_model %>% compile(
+NN_model %>% compile(
   optimizer = "adam",
   loss = "mse"
 )
 
-summary(RNN_model)
+summary(NN_model)
 
-history = RNN_model %>% fit(
+history = NN_model %>% fit(
   x_train, y_train,
-  epochs = 10, batch_size = 16,
+  epochs = 50, batch_size = 16,
   validation_data = list(x_test, y_test),
   verbose = 1
 )
-
-y_pred = RNN_model %>% predict(x_test)
-(mse = mean((y_pred- y_test)^2))
 ```
 
 
 
-1)	Simple Linear Regression
-This model is often the first approach to try when you believe the relationship between the variables is linear.
-Pros:
-Easy to implement and interpret.
-Provides a clear and direct relationship between the predictor and the outcome.
-Cons:
-Assumes a linear relationship; might not work well if the relationship is nonlinear.
-Sensitive to outliers.
-the relationship between the predictors and the target is nonlinear, a more complex model is needed, like multiple regression.
+```{r}
+results <- c(
+MAE(  NN_model, x_train, y_train),
+MAE(  NN_model, x_test, y_test),
+MSE(  NN_model, x_train, y_train),
+MSE(  NN_model, x_test, y_test),
+Rsq(  NN_model, x_train, y_train),
+Rsq(  NN_model, x_test, y_test),
+R2adj(NN_model, x_train, y_train),
+R2adj(NN_model, x_test, y_test)
+)
 
+results <- round(results, 2)
 
-2)	Ridge Regression
-we have correlation among the predictors. It adds a penalty term to the least squares estimation, shrinking the coefficients to prevent overfitting. While simple linear regression is easy to implement, it doesn’t handle multicollinearity well, and its performance can degrade when predictors are highly correlated.
-Pros:
-Reduces model complexity and prevents overfitting by regularizing the coefficients.
-Useful in high-dimensional datasets.
-Cons:
-Does not perform feature selection (all features are included in the model).
-The results might be harder to interpret due to the regularization.
-We want to perform feature selection, lasso regression might be a better choice.
+cat(paste(results, collapse = " | "))
+```
+| Model | train MAE | test MAE | train MSE |test MSE | train $R^2$ | test $R^2$ | train Adjusted $R^2$ | test Adjusted $R^2$ |
+|:--------  | ---- | ---  | ----- | ----- |------| ---- | -----| ----- |
+| LinReg    | 6    | 6.9  | 81.68 | 87.44 | 0.33 | 0.01 | 0.23 | -11.25| 
+| best_step | 6.17 | 6.52 | 83.96 | 78.9  | 0.31 | 0.11 | 0.27 | -10.06|
+| best_lasso| 6.55 | 6.06 | 99.04 | 80.52 | 0.19 | 0.09 | 0.04 | 3.09  |
+| XGBoost   | 4.47 | 6.12 | 46.26 | 67.16 | 0.62 | 0.24 | 0.55 | 2.74  |
+| RandomFrst| 5.44 | 6.02 | 69.57 | 76.25 | 0.43 | 0.14 | 0.37 | -9.69 |
+| tuned_RF  | 2.97 | 5.78 | 21.74 | 66.29 | 0.82 | 0.25 | 0.8  | -8.29 |
+| SVR       | 5.82 | 6.43 | 118.31| 105.28| 0.07 | -0.03| -0.18| -0.99 |
+| tuned SVR | 4.55 | 6.39 | 91.22 | 97.47 | 0.28 | 0.05 | 0.09 | -0.85 |
+| Neural Net| 12.13| 13.29| 266.01 | 301.92 | -1.17 | -2.41 | -1.58 | 8.84 |
 
-
-3)	Lasso Regression
-Ridge regression shrinks coefficients but does not perform feature selection, meaning all features remain in the model, which can make interpretation difficult. Lasso regression, on the other hand, performs both regularization and feature selection by driving some coefficients to zero. This leads to a simpler, more interpretable model with fewer predictors. This is useful when we have some irrelevant predictors.
-Pros:
-Performs feature selection, resulting in simpler, more interpretable models.
-Effective when there are many irrelevant or redundant features.
-Cons:
-Might eliminate useful predictors if the penalty is too high.
-We use lasso regression to perform feature selection in addition to regularization.
-
-
-4)	Generalized Additive Model (GAM)
-This model allows for nonlinear relationships between predictors and the target variable(Amtiaz) and it fits a separate smoother for each predictor. The relationship between the predictors and Amtiaz is nonlinear but we want interpretability. While lasso regression is useful for regularization and feature selection, it assumes a linear relationship between the predictors and the target. GAM offers greater flexibility when the relationship is nonlinear and allows each predictor to have a nonlinear effect, improving model performance when there is no simple linear relationship.
-Pros:
-Allows for nonlinear relationships, providing flexibility in modeling complex data.
-More interpretable than non-parametric models like random forests.
-Cons:
-Can be computationally expensive.
-Requires careful tuning of smoothers.
-
-
-5)	Random Forest
-It is particularly useful for capturing complex, nonlinear relationships in the data. GAM is interpretable but might not perform as well as some machine learning methods when it comes to complex, high-dimensional data. We have a large number of predictors and complex interactions so that is why we use this model.
-Pros:
-Handles both numerical and categorical data.
-Robust to overfitting and performs well even with noisy data.
-Cons:
-Less interpretable compared to simpler models.
-Computationally expensive and can become slow with large datasets.
-
-
-6)	Support Vector Regression (SVR)
-t tries to find a hyperplane that best separates the data with a margin, handling nonlinear relationships using kernel functions. We have a dataset and need a powerful, nonlinear model that can handle complex relationships. Also the R-square of tree is low.
-Pros:
-Works well for high-dimensional spaces.
-Robust to overfitting, especially in high-dimensional space.
-Cons:
-Sensitive to the choice of the kernel and hyperparameters.
-Computationally expensive for large datasets.
-
-
-7)	Neural Networks (NN)
-This model is highly flexible and capable of learning complex patterns in the data through layers of interconnected nodes.
-Pros:
-Extremely powerful and flexible for modeling complex, nonlinear relationships.
-Can learn intricate patterns from large datasets.
-Cons:
-Difficult to interpret due to the "black-box" nature.
-"""
+Neural Net when not tuned, performs worse.

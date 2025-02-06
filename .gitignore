@@ -1,5 +1,16 @@
 # ipynb
 /.ipynb_checkpoints
+reviewed_model_selection_files/
+
+# TeX
+*.aux
+*.tex
+*.fls
+*.log
+*.xdv
+*.dvi
+*.fdb_latexmk
+
 
 # History files
 .Rhistory
