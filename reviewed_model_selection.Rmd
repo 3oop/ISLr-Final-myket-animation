@@ -13,7 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 
-```{r warning=FALSE}
+```{r warning=FALSE, message=FALSE}
 library(ggplot2)
 library(dplyr)
 library(tidyr)
@@ -514,7 +514,7 @@ cat(paste(results, collapse = " | "))
 An extensive notebook on fitting a neural network is given in python.
 
 
-```{r , warning=FALSE}
+```{r , warning=FALSE, message=FALSE, results='hide'}
 library(keras)
 NN_model = keras_model_sequential() %>%
   layer_dense(units = 128, activation = "relu", input_shape = dim(x_train)[2] ) %>%
@@ -533,13 +533,12 @@ history = NN_model %>% fit(
   x_train, y_train,
   epochs = 50, batch_size = 16,
   validation_data = list(x_test, y_test),
-  verbose = 1
 )
 ```
 
 
 
-```{r}
+```{r, message=FALSE}
 results <- c(
 MAE(  NN_model, x_train, y_train),
 MAE(  NN_model, x_test, y_test),
