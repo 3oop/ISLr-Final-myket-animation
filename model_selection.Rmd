@@ -312,34 +312,47 @@ df$Rade <- as.factor(df$Rade)
 df$Amtiaz <- as.numeric(df$Amtiaz)
 df$Year <- as.numeric(df$Year)
 # Convert categorical variables to dummy variables
-df <- dummyVars(~ ., data = df) %>% predict(df) %>% as.data.frame()
+df_dummy <- dummyVars(~ ., data = df) %>% predict(df) %>% as.data.frame()
+train_data_dummy <- df_dummy[train_idx, ]
+valid_data_dummy <- df_dummy[valid_idx, ]
+test_data_dummy  <- df_dummy[test_idx, ]
 
 #Split the data into features and target
 target <- "Amtiaz"
-predictors <- setdiff(names(df), target)
+predictors <- setdiff(names(df_dummy), target)
 
 # Scale numerical features
-preproc <- preProcess(train_data[, predictors], method = c("center", "scale"))
-train_data_scaled <- predict(preproc, train_data)
-test_data_scaled <- predict(preproc, test_data)
-valid_data_scaled <- predict(preproc, valid_data)
-train_data_scaled$Amtiaz <- train_data$Amtiaz
-test_data_scaled$Amtiaz <- test_data$Amtiaz
-valid_data_scaled$Amtiaz <- valid_data$Amtiaz
+preproc <- preProcess(train_data_dummy[, predictors], method = c("center", "scale"))
+train_data_scaled <- predict(preproc, train_data_dummy)
+test_data_scaled <- predict(preproc, test_data_dummy)
+valid_data_scaled <- predict(preproc, valid_data_dummy)
+
+train_data_scaled$Amtiaz <- train_data_dummy$Amtiaz
+test_data_scaled$Amtiaz <- test_data_dummy$Amtiaz
+valid_data_scaled$Amtiaz <- valid_data_dummy$Amtiaz
+
+x <- model.matrix(Amtiaz ~ ., df_dummy)[, -1]
+y <- df_dummy$Amtiaz
+x_train_dummy <- x[train_idx, ]
+x_test_dummy <- x[test_idx, ]
+x_valid_dummy <- x[valid_idx, ]
+y_train_dummy <- y[train_idx]
+y_test_dummy <- y[test_idx]
+y_valid_dummy <- y[valid_idx]
 
 #tuning parameters sigma and C(cost)
 tuneGrid_svr <- expand.grid(.sigma = c(0.1, 0.5, 1), .C = c(0.1, 1, 10))
 # 10-fold cross-validation
-svr_tuned <- train(x_train, y_train, method = "svmRadial", tuneGrid = tuneGrid_svr, trControl = trainControl(method = "cv", number = 10))
+svr_tuned <- train(x_train_dummy, y_train_dummy, method = "svmRadial", tuneGrid = tuneGrid_svr, trControl = trainControl(method = "cv", number = 10)  )
 best_params_svr <- svr_tuned$bestTune
 cat("Optimal Parameters for SVR : ",  paste(best_params_svr, collapse = ", "), "\n")
 svr_model <- svm(Amtiaz ~ ., data = train_data_scaled, type = "eps-regression", kernel = "radial", sigma = best_params_svr$sigma, C = best_params_svr$C)
 
 pred_svr <- predict(svr_model,valid_data_scaled)
-sse_svr <- sum((pred_svr - valid_data$Amtiaz)^2)
-sst <- sum((valid_data$Amtiaz - mean(valid_data$Amtiaz))^2)
-mse_svr <- mean((pred_svr - valid_data$Amtiaz)^2)
-mae_svr <- mean(abs(pred_svr - valid_data$Amtiaz))
+sse_svr <- sum((pred_svr - valid_data_dummy$Amtiaz)^2)
+sst <- sum((valid_data_dummy$Amtiaz - mean(valid_data_dummy$Amtiaz))^2)
+mse_svr <- mean((pred_svr - valid_data_dummy$Amtiaz)^2)
+mae_svr <- mean(abs(pred_svr - valid_data_dummy$Amtiaz))
 r2_svr <- 1 - sse_svr/sst
 cat("MSE for SVR : ", mse_svr, "\n")
 cat("MAE for SVR : ", mae_svr, "\n")
@@ -355,12 +368,6 @@ MAE for SVR :  7.237962
 R2 for SVR :  0.006120485 
 
 # GAM
-
-```{r}
-data = 'clean_data.csv'
-df <- read.csv(data, stringsAsFactors = TRUE)
-```
-
 ```{r}
 df$Country <- factor(df$Country)
 df$Rade <- factor(df$Rade)
