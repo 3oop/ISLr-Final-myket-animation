@@ -28,6 +28,7 @@ library(glmnet)
 library(mgcv)
 library(caret)
 library(e1071)
+library(xgboost)
 
 ```
 
@@ -235,7 +236,14 @@ sse_lasso <- sum((pred_lasso - test_data$Amtiaz)^2)
 sst <- sum((test_data$Amtiaz - mean(test_data$Amtiaz))^2)
 r2_lasso <- 1 - sse_lasso/sst
 ```
-
+#XG Boost
+```{r}
+xgb_model = xgboost(data = x_train, label = y_train, nrounds = 30, objective = "reg:squarederror", eta = 0.1, max_depth = 8)
+pred_xgb <- predict(xgb_model, x_test)
+sse_xgb <- sum((pred_xgb - test_data$Amtiaz)^2)
+sst <- sum((test_data$Amtiaz - mean(test_data$Amtiaz))^2)
+r2_xgb <- 1 - sse_xgb/sst
+```
 
 # GAM
 
@@ -453,9 +461,6 @@ tuned <- tune(svm, Amtiaz ~ ., data = train_data_scaled,kernel = "radial", range
 best_model <- tuned$best.model
 summary(best_model)
 ```
-
-
-
 
 
 1)	Simple Linear Regression
