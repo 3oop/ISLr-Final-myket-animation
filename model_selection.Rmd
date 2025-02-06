@@ -29,7 +29,8 @@ library(mgcv)
 library(caret)
 library(e1071)
 library(xgboost)
-
+library(e1071)
+library(kernlab)
 ```
 
 ```{r}
@@ -291,7 +292,6 @@ xgb_model <- xgboost(data = x_train,
 
 pred_xgb <- predict(xgb_model, x_valid)
 sse_xgb <- sum((pred_xgb - valid_data$Amtiaz)^2)
-sst <- sum((valid_data$Amtiaz - mean(valid_data$Amtiaz))^2)
 mse_xgb <- mean((pred_xgb - valid_data$Amtiaz)^2)
 mae_xgb <- mean(abs(pred_xgb - valid_data$Amtiaz))
 r2_xgb <- 1 - sse_xgb/sst
@@ -303,6 +303,56 @@ Optimal Parameters for XG Boost :  50, 3, 0.1, 5, 0.5, 5, 1
 MSE for XG Boost :  111.038 
 MAE for XG Boost :  7.076772 
 R2 for XG Boost :  0.1469957
+
+# SVR
+```{r}
+# Convert columns 
+df$Country <- as.factor(df$Country)
+df$Rade <- as.factor(df$Rade)
+df$Amtiaz <- as.numeric(df$Amtiaz)
+df$Year <- as.numeric(df$Year)
+# Convert categorical variables to dummy variables
+df <- dummyVars(~ ., data = df) %>% predict(df) %>% as.data.frame()
+
+#Split the data into features and target
+target <- "Amtiaz"
+predictors <- setdiff(names(df), target)
+
+# Scale numerical features
+preproc <- preProcess(train_data[, predictors], method = c("center", "scale"))
+train_data_scaled <- predict(preproc, train_data)
+test_data_scaled <- predict(preproc, test_data)
+valid_data_scaled <- predict(preproc, valid_data)
+train_data_scaled$Amtiaz <- train_data$Amtiaz
+test_data_scaled$Amtiaz <- test_data$Amtiaz
+valid_data_scaled$Amtiaz <- valid_data$Amtiaz
+
+#tuning parameters sigma and C(cost)
+tuneGrid_svr <- expand.grid(.sigma = c(0.1, 0.5, 1), .C = c(0.1, 1, 10))
+# 10-fold cross-validation
+svr_tuned <- train(x_train, y_train, method = "svmRadial", tuneGrid = tuneGrid_svr, trControl = trainControl(method = "cv", number = 10))
+best_params_svr <- svr_tuned$bestTune
+cat("Optimal Parameters for SVR : ",  paste(best_params_svr, collapse = ", "), "\n")
+svr_model <- svm(Amtiaz ~ ., data = train_data_scaled, type = "eps-regression", kernel = "radial", sigma = best_params_svr$sigma, C = best_params_svr$C)
+
+pred_svr <- predict(svr_model,valid_data_scaled)
+sse_svr <- sum((pred_svr - valid_data$Amtiaz)^2)
+sst <- sum((valid_data$Amtiaz - mean(valid_data$Amtiaz))^2)
+mse_svr <- mean((pred_svr - valid_data$Amtiaz)^2)
+mae_svr <- mean(abs(pred_svr - valid_data$Amtiaz))
+r2_svr <- 1 - sse_svr/sst
+cat("MSE for SVR : ", mse_svr, "\n")
+cat("MAE for SVR : ", mae_svr, "\n")
+cat("R2 for SVR : ", r2_svr, "\n")
+
+# Plot actual vs predicted values
+plot(valid_data_scaled$Amtiaz, pred_svr, xlab = "Actual Amtiaz", ylab = "Predicted Amtiaz", main = "SVR Predictions vs. Actual Values", col = "green", pch = 16)
+abline(0, 1, col = "red", lwd = 2)
+```
+Optimal Parameters for SVR :  1, 10 
+MSE for SVR :  129.3761 
+MAE for SVR :  7.237962 
+R2 for SVR :  0.006120485 
 
 # GAM
 
@@ -442,83 +492,6 @@ varImpPlot(rf_model)
 ```{r}
 rsq <- 1 - sum((predictions - test_data$Amtiaz)^2) / sum((mean(test_data$Amtiaz) - test_data$Amtiaz)^2)
 print(paste("R-squared:", rsq))
-```
-
-# SVR
-
-```{r}
-data = 'clean_data.csv'
-df <- read.csv(data, stringsAsFactors = TRUE)
-```
-
-```{r}
-# Convert columns 
-df$Country <- as.factor(df$Country)
-df$Rade <- as.factor(df$Rade)
-df$Amtiaz <- as.numeric(df$Amtiaz)
-df$Year <- as.numeric(df$Year)
-df$IMDB_Link <- as.numeric(df$IMDB_Link)
-# Convert categorical variables to dummy variables
-df <- dummyVars(~ ., data = df) %>% predict(df) %>% as.data.frame()
-```
-
-Split the data into features and target
-
-```{r}
-target <- "Amtiaz"
-predictors <- setdiff(names(df), target)
-
-# or
-#features <- data[,-which(names(data) == "Amtiaz")]
-#target <- data$Amtiaz
-```
-
-train,test
-
-```{r}
-set.seed(123)
-train_index <- sample(1:nrow(df), size = floor(0.8 * nrow(df)), replace = FALSE)
-train_data <- df[train_index, ]
-test_data <- df[-train_index, ]
-
-# Scale numerical features
-preproc <- preProcess(train_data[, predictors], method = c("center", "scale"))
-train_data_scaled <- predict(preproc, train_data)
-test_data_scaled <- predict(preproc, test_data)
-
-train_data_scaled$Amtiaz <- train_data$Amtiaz
-test_data_scaled$Amtiaz <- test_data$Amtiaz
-```
-
-```{r}
-svr_model <- svm(Amtiaz ~ ., data = train_data_scaled, kernel = "radial", cost = 1, gamma = 0.1)
-
-plot(svr_model, train_data_scaled)
-summary(svr_model)
-```
-
-```{r}
-predictions <- predict(svr_model,test_data_scaled)
-head(predictions)
-
-mse <- mean((predictions - test_data_scaled$Amtiaz)^2)
-print(paste("Mean Squared Error:", mse))
-
-r2 <- cor(predictions, test_data_scaled$Amtiaz)^2
-print(paste("R-squared:", r2))
-
-# Plot actual vs predicted values
-plot(test_data_scaled$Amtiaz, predictions, 
-     xlab = "Actual Amtiaz", ylab = "Predicted Amtiaz",
-     main = "SVR Predictions vs. Actual Values",
-     col = "green", pch = 16)
-abline(0, 1, col = "red", lwd = 2)
-```
-
-```{r}
-tuned <- tune(svm, Amtiaz ~ ., data = train_data_scaled,kernel = "radial", ranges = list(cost =c(0.1, 1, 10), gamma = c(0.01, 0.1, 1)))
-best_model <- tuned$best.model
-summary(best_model)
 ```
 
 
