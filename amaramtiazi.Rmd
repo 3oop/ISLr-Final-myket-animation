@@ -339,3 +339,103 @@ print("The data has been successfully saved to a CSV file on the desktop.")
 
 
 ```
+
+But there is still an error; for instance, the word 'dog' has two letters. To reduce this error, we do not remove all two-letter words, but rather those that are redundant
+
+First, identify redundant two- and three-letter words.
+
+```{r}
+library(tidyverse)
+
+animation_names <- data$Name
+
+# Function to preprocess names
+preprocess_name <- function(name) {
+  words <- str_split(tolower(name), "\\W+")[[1]]
+  words <- words[words != "انیمیشن"]
+  return(words)
+}
+
+# Extract words from animation names
+words_list <- unlist(map(animation_names, preprocess_name))
+
+# Filter two-letter and three-letter words
+short_words <- words_list[nchar(words_list) == 2 | nchar(words_list) == 3]
+
+# Remove duplicate words
+unique_short_words <- unique(short_words)
+
+# Print the unique two-letter and three-letter words
+print(unique_short_words)
+
+```
+
+
+```{r}
+library(dplyr)
+library(stringr)
+library(readr)
+library(clustMixType)
+
+# Assume we have a list of animation names
+animation_names <- data$Name
+
+# List of harof_izafeh
+harof_izafeh <- c("ها", "حال", "یا", "یه", "پن", "چه", "اگر", "دهد", "آور", "هی", "شدن", "اوه")
+
+# Function to preprocess names and remove harof_izafeh
+preprocess_name <- function(name) {
+  words <- str_split(tolower(name), "\\W+")[[1]]
+  words <- words[words != "انیمیشن" & nchar(words) > 1]
+  words <- words[!words %in% harof_izafeh]
+  return(words)
+}
+
+# Extract words
+animation_words <- lapply(animation_names, preprocess_name)
+
+# Find similar animations
+similar_animations <- lapply(seq_along(animation_words), function(i) {
+  similar <- sapply(seq_along(animation_words), function(j) {
+    if (i != j && any(animation_words[[i]] %in% animation_words[[j]])) {
+      return(animation_names[j])
+    } else {
+      return(NA)
+    }
+  })
+  similar <- similar[!is.na(similar)]
+  if (length(similar) < 12) {
+    similar <- c(similar, rep("#", 12 - length(similar)))
+  } else {
+    similar <- similar[1:12]
+  }
+  return(similar)
+})
+
+# Create data frame and save to CSV file
+df <- data.frame(Animation_Name = animation_names, do.call(rbind, similar_animations))
+colnames(df)[2:13] <- paste0("Similar_", 1:12)
+numeric_columns <- c("IMDB_Link", "Amtiaz", "Number_People")
+categorical_columns <- c("Series", "Animation", "Western", "Adventure", "Comedy", "Family", "Fantasy", "Mystery", "Action", "Romance", "Drama", "SciFi", "ShortFilm", "Crime", "Musical", "Korean", "Thriller", "Anime", "Music")
+data[categorical_columns] <- lapply(data[categorical_columns], as.factor)
+set.seed(123)
+k <- 12
+kproto_result <- kproto(data[, c(numeric_columns, categorical_columns)], k = k)
+data$Cluster <- kproto_result$cluster
+
+# Fill in missing values based on the cluster
+df <- df %>%
+  rowwise() %>%
+  mutate(across(starts_with("Similar_"), ~ ifelse(. == "#", 
+                sample(animation_names[data$Cluster == data$Cluster[which(animation_names == Animation_Name)]], 1), .)))
+desktop_path <- file.path(Sys.getenv("USERPROFILE"), "Desktop", "similar_animations2.csv")
+
+# Save the data to a CSV file on the desktop
+write_csv(df, desktop_path)
+
+# Display confirmation message
+print("The data has been successfully saved to a CSV file on the desktop.")
+
+```
+
+In my opinion, this list is the best recommendation for introducing twelve different animations.
