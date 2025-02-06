@@ -1,0 +1,736 @@
+---
+title: "ISL Final Project Phase II"
+author: "Pooria Assarehha"
+date: "`r Sys.Date()`"
+output: pdf_document
+editor_options: 
+  markdown: 
+    wrap: sentence
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r warning=FALSE}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(corrplot)
+library(gridExtra)
+library(tidyverse)
+library(reshape2)
+library(moments)
+
+library(caret)
+```
+
+```{r}
+data_path <- "clean_data.csv"  
+data <- read.csv(data_path, stringsAsFactors = TRUE)  
+```
+
+# Data Preparation
+
+The first to columns assume no role in our estimation, they can be omitted. After reading the file each feature must take its datatype by definition.
+Then we separate out target variable from predictive features.
+
+
+```{r warning=FALSE}
+# Remove the first two columns
+data %>% select(!c(URL, Name)) -> data
+
+# Convert binary columns to factors
+for (col in names(data)){
+  if (all(unique(data[,col]) == c(0,1) )  || all(unique(data[,col]) == c(1,0)))
+    data[,col] = factor(data[,col])
+}
+
+# Define the target variable
+target <- data$Amtiaz
+
+# Remove the target variable column from the features
+features <- data %>% select(!Amtiaz)
+
+```
+
+## Exploratory Data Analysis
+
+Histograms for key numerical variables
+
+```{r, fig.width=9}
+num_cols <- c("IMDB_Link", "Amtiaz", "Number_People", "Total_Episodes")
+
+par(mfrow=c(2,2)) 
+for (col in num_cols) {
+  hist(
+    data[[col]], 
+    main=paste("Distribution of", col),
+    xlab = paste(col, "Value"),
+    col="skyblue", 
+    border="black")
+}
+```
+
+Correlation Heatmap
+
+```{r, fig.height=9, fig.width= 9}
+num_data <- data %>% select_if(is.numeric)
+corr_matrix <- cor(num_data, use="complete.obs")
+
+corrplot(
+  corr_matrix, 
+  method="color", 
+  col=colorRampPalette(c("blue", "white", "red"))(200),
+  tl.cex=0.35, tl.col="black", 
+  title="Correlation Heatmap")
+```
+Strong correlations exist between IMDB_Link, Amtiaz, and Number_People, indicating possible relationships worth exploring in modeling.
+
+Most of our features don't show any relation to target variable or any other feature.
+
+Bar chart for Categorical Features, Country distribution
+
+```{r}
+data %>%
+  ggplot(aes(x=Country)) +
+  geom_bar(fill="skyblue", color="black") +
+  theme(axis.text.x = element_text(angle=45, hjust=1)) +
+  labs(title="Distribution of Movies by Country", x="Country", y="Count")
+```
+There are Countries that only appear once in our data, hence no inference or estimation can be done with them, let's simply omit those.
+
+```{r}
+data %>%
+  group_by(Country) %>%
+  filter(n() > 1) -> data
+nrow(data)
+```
+
+
+
+Bar chart for Rade distribution
+
+```{r}
+data %>%
+  ggplot(aes(x=Rade)) +
+  geom_bar(fill="orange", color="black") +
+  theme(axis.text.x = element_text(angle=45, hjust=1)) +
+  labs(title="Distribution of Movies by Rade", x="Rade", y="Count")
+```
+
+Data Overview: The dataset contains 638 rows and 61 columns.
+There are both numerical and categorical features.
+Columns like URL, Name, and Rade are categorical, while others like IMDB_Link, Amtiaz, and Number_People are numerical.
+The dataset has no missing values after preprocessing.
+
+Numerical Features: IMDB_Link has values ranging from 2.1 to 9.3, with a mean of 6.84.
+Amtiaz ranges from 17 to 100, with a mean of 84.6.
+Number_People has high variance, ranging from 1,000 to 998,000.
+Year values range from 1940 to 2025, with most data points concentrated in recent years.
+Some numerical columns (like Total_Episodes) have skewed distributions, which might affect modeling.
+
+Categorical Features: Country and Rade should be analyzed further with frequency counts.
+Many binary genre columns (e.g., Romance, SciFi, Anime) are mostly 0s, meaning most movies don't belong to these genres.
+
+
+### Metric Functions
+We choose and define these functions to evaluate out models now on. 
+
+```{r}
+MAE <- function(model, x_test, y_test) mean(abs(predict(model, x_test)- y_test))
+MSE <- function(model, x_test, y_test) mean((predict(model, x_test)- y_test)^2)
+Rsq <- function(model, x_test, y_test) 1 - sum((predict(model, x_test)- y_test)^2)/sum((y_test - mean(y_test))^2)
+R2adj <- function(model, x_test, y_test) 1 - ((1 - Rsq(model, x_test, y_test) ) * (nrow(x_test) - 1) / (nrow(x_test) - ncol(x_test) - 1))
+```
+
+
+# Predicting Amtiaz
+
+From EDA and corr plot, we know no specific feature that has strong linear correlation with out response/target variable `Amtiaz`. This means simple linear regression won't give us a great prediction.
+
+### Simple linear regression
+
+```{r}
+set.seed(1)
+n <- nrow(data)
+train_idx <- sample(1:n, size = 0.7 * n)  
+remaining_idx <- setdiff(1:n, train_idx)  
+valid_idx <- sample(remaining_idx, size = 0.15 * n)  
+test_idx <- setdiff(remaining_idx, valid_idx)  
+train_data <- data[train_idx, ]
+valid_data <- data[valid_idx, ]
+test_data  <- data[test_idx, ]
+```
+
+```{r}
+set.seed(1)
+
+n <- nrow(data)
+
+
+train_idx <- sample(1:n, size = 0.9 * n)  
+test_idx <- setdiff(1:n, train_idx)  
+
+train_data <- data[train_idx, ]
+test_data  <- data[test_idx, ]
+
+
+lm_model <- lm(Amtiaz~., data = train_data)
+res = summary(lm_model)
+AIC(lm_model)
+```
+
+As of Linear Model summary, we see despite having many features, only 5 prove meaningful and there are a lot of features/parameters.
+
+## Feature Selection
+
+### Stepwise substest selection
+
+```{r}
+#res_step = step(lm_model, direction = 'both')
+best_step_lm <- lm(formula = Amtiaz ~ IMDB_Link + Country + Rade + Is_Doblele + 
+    Story_Words + Series + Adventure + Comedy + Family + Action + 
+    ShortFilm + Korean, data = train_data)
+res <- summary(best_step_lm)
+```
+
+```{r}
+results <- c(
+mean(abs(best_step_lm$residuals)),
+MAE(best_step_lm, test_data %>% select(!'Amtiaz'), test_data$Amtiaz),
+mean(best_step_lm$residuals^2),
+MSE(best_step_lm, test_data %>% select(!'Amtiaz'), test_data$Amtiaz),
+res$r.squared,
+Rsq(best_step_lm, test_data %>% select(!'Amtiaz'), test_data$Amtiaz),
+res$adj.r.squared,
+R2adj(best_step_lm, test_data %>% select(!'Amtiaz'), test_data$Amtiaz)
+)
+
+results <- round(results, 2)
+
+cat(paste(results, collapse = " | "))
+```
+### Using Lasso Selection
+
+Lasso penalization can be used to select features.
+
+```{r}
+library(glmnet)
+
+x <- model.matrix(Amtiaz ~ ., data)[, -1]
+y <- data$Amtiaz
+x_train <- x[train_idx, ]
+x_test <- x[test_idx, ]
+x_valid <- x[valid_idx, ]
+y_train <- y[train_idx]
+y_test <- y[test_idx]
+y_valid <- y[valid_idx]
+  
+
+
+lasso_cv <- cv.glmnet(
+  x_train, y_train, alpha = 1, # Indicating Lasso
+  lambda = 10^seq(4, -2, length = 100)
+  )
+
+plot(lasso_cv, main = "Cross Validation to find lambda")
+
+best_lambda_lasso <- lasso_cv$lambda.min
+
+cat("Optimal Lambda for Lasso: ", best_lambda_lasso, "\n")
+```
+
+```{r}
+lasso_model <- glmnet(x_train, y_train, alpha = 1, lambda = best_lambda_lasso)
+
+y_pred <- predict(lasso_model, s = best_lambda_lasso, newx = x_test)
+
+results <- c(
+MAE(lasso_model,   x_train, y_train),
+MAE(lasso_model,   x_test, y_test),
+MSE(lasso_model,   x_train, y_train),
+MSE(lasso_model,   x_test, y_test),
+Rsq(lasso_model,   x_train, y_train),
+Rsq(lasso_model,   x_test, y_test),
+R2adj(lasso_model, x_train, y_train),
+R2adj(lasso_model, x_test, y_test)
+)
+
+results <- round(results, 2)
+
+cat(paste(results, collapse = " | "))
+
+```
+
+
+### Metric Functions
+We choose and define these functions to evaluate out models now on. 
+
+```{r}
+MAE <- function(model, x_test, y_test) mean(abs(predict(model, x_test)- y_test))
+MSE <- function(model, x_test, y_test) mean((predict(model, x_test)- y_test)^2)
+Rsq <- function(model, x_test, y_test) 1 - sum((predict(model, x_test)- y_test)^2)/sum((y_test - mean(y_test))^2)
+R2adj <- function(model, x_test, y_test) 1 - ((1 - Rsq(model, x_test, y_test) ) * (nrow(x_test) - 1) / (nrow(x_test) - ncol(x_test) - 1))
+```
+
+
+```{r}
+results <- c(
+mean(abs(lm_model$residuals)),
+MAE(lm_model, test_data %>% select(!'Amtiaz'), test_data$Amtiaz),
+mean(lm_model$residuals^2),
+MSE(lm_model, test_data %>% select(!'Amtiaz'), test_data$Amtiaz),
+res$r.squared,
+Rsq(lm_model, test_data %>% select(!'Amtiaz'), test_data$Amtiaz),
+res$adj.r.squared,
+R2adj(lm_model, test_data %>% select(!'Amtiaz'), test_data$Amtiaz)
+)
+
+results <- round(results, 2)
+
+cat(paste(results, collapse = " | "))
+```
+
+| Model | train MAE | test MAE | train MSE |test MSE | train $R^2$ | test $R^2$ | train Adjusted $R^2$ | test Adjusted $R^2$ |
+|:----- | ------ | --- | ----- | ----- |------ | --- | ----- | ---- |
+| LinReg    | 6    | 6.9  | 81.68 | 87.44 | 0.33 | 0.01 | 0.23 | -11.25 | 
+|best_step  | 6.17 | 6.52 | 83.96 | 78.9 | 0.31 | 0.11 | 0.27 | -10.06|
+|best_lasso | 6.55 | 6.06 | 99.04 | 80.52 | 0.19 | 0.09 | 0.04 | 3.09 |
+
+As we see our Linear models (Comparing $R^2$) are doing no better job than the "Mean predictor" (mean response is the prediction for all). This means features are not predicting the response. So far our models ignored feature interactions, we can turn to models that include interactions well like trees. We know bagging can reduce the variance of trees and boosting can reduce bias. 
+
+
+
+## XG Boost
+
+```{r}
+library(xgboost)
+
+#tuning parameters nrounds(number of repetitions), eta(learning rate), max_depth(trees depth), gamma(minimum reduction in waste), colsample_bytree(feature #selection percentage for each tree), min_child_weight(minimum sample weight at nodes), subsample(sampling ratio)
+grid <- expand.grid(
+  nrounds = c(50, 100, 150),   
+  eta = c(0.01, 0.1, 0.3),     
+  max_depth = c(3, 6, 9),
+  gamma = c(0, 1, 5),          
+  colsample_bytree = c(0.5, 0.7, 1), 
+  min_child_weight = c(1, 3, 5),     
+  subsample = c(0.6, 0.8, 1)
+  )
+
+#10-fold cross-validation
+train_control <- trainControl(method = "cv", number = 10) 
+xgb_tuned <- train(x = as.matrix(x_train), y = y_train, method = "xgbTree", trControl = train_control, tuneGrid = grid)
+best_params <- xgb_tuned$bestTune
+cat("Optimal Parameters for XG Boost : ",  paste(best_params, collapse = ", "), "\n")
+
+xgb_model <- xgboost(data = x_train,
+  label = y_train,
+  nrounds = best_params$nrounds,
+  eta = best_params$eta,
+  max_depth = best_params$max_depth,
+  min_child_weight = best_params$min_child_weight,
+  subsample = best_params$subsample,
+  colsample_bytree = best_params$colsample_bytree,
+  objective = "reg:squarederror")
+
+pred_xgb <- predict(xgb_model, x_valid)
+sse_xgb <- sum((pred_xgb - valid_data$Amtiaz)^2)
+mse_xgb <- mean((pred_xgb - valid_data$Amtiaz)^2)
+mae_xgb <- mean(abs(pred_xgb - valid_data$Amtiaz))
+r2_xgb <- 1 - sse_xgb/sst
+cat("MSE for XG Boost : ", mse_xgb, "\n")
+cat("MAE for XG Boost : ", mae_xgb, "\n")
+cat("R2 for XG Boost : ", r2_xgb, "\n")
+```
+Optimal Parameters for XG Boost :  50, 3, 0.1, 5, 0.5, 5, 1 
+MSE for XG Boost :  111.038 
+MAE for XG Boost :  7.076772 
+R2 for XG Boost :  0.1469957
+
+| Model | train MAE | test MAE | train MSE |test MSE | train $R^2$ | test $R^2$ | train Adjusted $R^2$ | test Adjusted $R^2$ |
+|:----- | ------ | --- | ----- | ----- |------ | --- | ----- | ---- |
+| LinReg    | 6    | 6.9  | 81.68 | 87.44 | 0.33 | 0.01 | 0.23 | -11.25 | 
+|best_step  | 6.17 | 6.52 | 83.96 | 78.9 | 0.31 | 0.11 | 0.27 | -10.06|
+|best_lasso | 6.55 | 6.06 | 99.04 | 80.52 | 0.19 | 0.09 | 0.04 | 3.09 |
+|xgboost    |     | 7.07 |      | 111.03  |     | 0.14 |    |     |   |
+
+There is an improvement in R^2 but an increase in MSE?
+
+
+"""
+
+### Using feature importance
+
+```{r}
+# Load required libraries
+library(randomForest)
+
+# Train the random forest model and calculate feature importance
+rf_model <- randomForest(features, target, importance = TRUE, na.action = na.omit)
+
+# Extract feature importance
+importance <- importance(rf_model)
+importance_data <- data.frame(Feature = rownames(importance), Importance = importance[, 1])
+
+# Sort features by importance
+importance_data <- importance_data[order(-importance_data$Importance), ]
+
+# Display important features
+print("Feature Importance:")
+print(importance_data)
+
+# Select the top n features (e.g., top 10 features)
+top_n <- 10
+top_features <- importance_data$Feature[1:top_n]
+
+
+# Create a new dataset with important features
+final_data <- data[, c(top_features, 'Amtiaz')]
+
+#! Skip writing to file, loading it again requires it to be prepared again
+#desktop_path <- file.path(Sys.getenv("USERPROFILE"), "Desktop", "final_data")
+
+# Save the data to a CSV file on the desktop
+#write_csv(final_data, desktop_path)
+
+# Display confirmation message
+#print("The data has been successfully saved to a CSV file on the desktop. To use Selecet data, load fainal_data.csv from current directory.")
+
+```
+
+
+
+# Model Map
+
+
+### GAM
+```{r}
+library(mgcv)
+library(caret)
+library(dplyr)
+library(ggplot2)
+```
+
+```{r}
+data = 'clean_data.csv'
+data <- read.csv(data, stringsAsFactors = TRUE)
+```
+
+```{r}
+data$Country <- factor(data$Country)
+data$Rade <- factor(data$Rade)
+data$Country <- factor(data$Country, levels = unique(data$Country))
+data$Rade <- factor(data$Rade, levels = unique(data$Rade))
+data$Year <- as.numeric(data$Year)
+data$Amtiaz <- as.numeric(data$Amtiaz)
+data$IMDB_Link <- as.numeric(data$IMDB_Link)
+## Identify binary variables and convert them to factors
+#binary_vars <- setdiff(names(data), c("Country", "Rade", "Year", "Amtiaz", "IMDB_Link"))
+#data[binary_vars] <- lapply(data[binary_vars], as.factor)
+```
+
+```{r}
+set.seed(123)
+train_index <- sample(1:nrow(data), size = floor(0.8 * nrow(data)), replace = FALSE)
+train_data <- data[train_index, ]
+test_data <- data[-train_index, ]
+
+# Align test set factor levels with training set
+test_data$Country <- factor(test_data$Country, levels = levels(train_data$Country))
+test_data$Rade <- factor(test_data$Rade, levels = levels(train_data$Rade))
+```
+
+```{r}
+gam_model <- gam(Amtiaz ~ s(Year) + s(IMDB_Link) + Country + Rade, data=train_data, method ="REML")
+
+summary(gam_model)
+```
+
+```{r}
+test_predictions <- predict(gam_model, newdata = test_data)
+
+# Calculate test MSE and R-squared
+mse_test <- mean((test_predictions - test_data$Amtiaz)^2)
+rsq_test <- 1 - sum((test_predictions - test_data$Amtiaz)^2) / sum((mean(test_data$Amtiaz) - test_data$Amtiaz)^2)
+
+
+train_predictions <- predict(gam_model, newdata = train_data)
+
+# Calculate training MSE and R-squared
+mse_train <- mean((train_predictions - train_data$Amtiaz)^2)
+rsq_train <- 1 - sum((train_predictions - train_data$Amtiaz)^2) / sum((mean(train_data$Amtiaz) - train_data$Amtiaz)^2)
+
+print(paste("Test Mean Squared Error:", mse_test))
+print(paste("Test R-squared:", rsq_test))
+print(paste("Train Mean Squared Error:", mse_train))
+print(paste("Train R-squared:", rsq_train))
+```
+
+```{r}
+plot(gam_model, pages = 1, shade = TRUE, col = "blue")
+
+par(mfrow = c(2, 2))
+gam.check(gam_model)
+```
+
+```{r}
+ata.frame(Actual = test_data$Amtiaz, Predicted = test_predictions), 
+       aes(x = Actual, y = Predicted)) +
+  geom_point(color = "blue") +
+  geom_abline(intercept = 0, slope = 1, col = "red", linetype = "dashed") +
+  labs(title = "GAM Predictions vs. Actual Values",
+       x = "Actual Amtiaz",
+       y = "Predicted Amtiaz") +
+  theme_minimal()
+```
+
+
+
+### Random forest
+
+```{r}
+library(randomForest)
+library(tidyverse)
+library(caret)
+```
+
+```{r}
+data = 'clean_data.csv'
+data <- read.csv(data, stringsAsFactors = TRUE)
+```
+
+```{r}
+# Convert columns 
+data$Country <- as.factor(data$Country)
+data$Rade <- as.factor(data$Rade)
+data$Year <- as.numeric(data$Year)
+data$Amtiaz <- as.numeric(data$Amtiaz)
+data$IMDB_Link <- as.numeric(data$IMDB_Link)
+# Convert all other binary variables to factor
+#binary_vars <- setdiff(names(data), c("Country", "Rade", "Year", "Amtiaz", "IMDB_Link"))
+#data[binary_vars] <- lapply(data[binary_vars], as.factor)
+```
+
+```{r}
+set.seed(123)
+train_index <- sample(1:nrow(data), size = floor(0.8 * nrow(data)), replace = FALSE)
+train_data <- data[train_index, ]
+test_data <- data[-train_index, ]
+```
+
+```{r}
+target <- "Amtiaz"
+predictors <- setdiff(names(data), target)
+```
+
+```{r}
+rf_model <- randomForest(Amtiaz ~ ., data = train_data, ntree = 100, mtry = 3, importance = TRUE)
+print(rf_model)
+```
+
+```{r}
+predictions <- predict(rf_model, test_data)
+head(predictions)
+
+# For regression tasks, Mean Squared Error (MSE)
+mse <- mean((predictions - test_data$Amtiaz)^2)
+print(paste("Mean Squared Error:", mse))
+```
+
+```{r}
+tuned_rf <- tuneRF(train_data[-which(names(train_data) == "Amtiaz")], train_data$Amtiaz, stepFactor = 1.5, improve = 0.01, ntreeTry = 100)
+print(tuned_rf)
+```
+
+```{r}
+importance(rf_model)
+varImpPlot(rf_model)
+```
+
+```{r}
+rsq <- 1 - sum((predictions - test_data$Amtiaz)^2) / sum((mean(test_data$Amtiaz) - test_data$Amtiaz)^2)
+print(paste("R-squared:", rsq))
+```
+
+### SVR
+
+```{r}
+library(e1071)
+library(caret)
+library(dplyr)
+```
+
+```{r}
+data = 'clean_data.csv'
+data <- read.csv(data, stringsAsFactors = TRUE)
+```
+
+```{r}
+# Convert columns 
+data$Country <- as.factor(data$Country)
+data$Rade <- as.factor(data$Rade)
+data$Amtiaz <- as.numeric(data$Amtiaz)
+data$Year <- as.numeric(data$Year)
+data$IMDB_Link <- as.numeric(data$IMDB_Link)
+# Convert categorical variables to dummy variables
+data <- dummyVars(~ ., data = data) %>% predict(data) %>% as.data.frame()
+```
+
+Split the data into features and target
+
+```{r}
+target <- "Amtiaz"
+predictors <- setdiff(names(data), target)
+
+# or
+#features <- data[,-which(names(data) == "Amtiaz")]
+#target <- data$Amtiaz
+```
+
+train,test
+
+```{r}
+set.seed(123)
+train_index <- sample(1:nrow(data), size = floor(0.8 * nrow(data)), replace = FALSE)
+train_data <- data[train_index, ]
+test_data <- data[-train_index, ]
+
+# Scale numerical features
+preproc <- preProcess(train_data[, predictors], method = c("center", "scale"))
+train_data_scaled <- predict(preproc, train_data)
+test_data_scaled <- predict(preproc, test_data)
+
+train_data_scaled$Amtiaz <- train_data$Amtiaz
+test_data_scaled$Amtiaz <- test_data$Amtiaz
+```
+
+```{r}
+svr_model <- svm(Amtiaz ~ ., data = train_data_scaled, kernel = "radial", cost = 1, gamma = 0.1)
+
+plot(svr_model, train_data_scaled)
+summary(svr_model)
+```
+
+```{r}
+predictions <- predict(svr_model,test_data_scaled)
+head(predictions)
+
+mse <- mean((predictions - test_data_scaled$Amtiaz)^2)
+print(paste("Mean Squared Error:", mse))
+
+r2 <- cor(predictions, test_data_scaled$Amtiaz)^2
+print(paste("R-squared:", r2))
+
+# Plot actual vs predicted values
+plot(test_data_scaled$Amtiaz, predictions, 
+     xlab = "Actual Amtiaz", ylab = "Predicted Amtiaz",
+     main = "SVR Predictions vs. Actual Values",
+     col = "green", pch = 16)
+abline(0, 1, col = "red", lwd = 2)
+```
+
+```{r}
+tuned <- tune(svm, Amtiaz ~ ., data = train_data_scaled,kernel = "radial", ranges = list(cost =c(0.1, 1, 10), gamma = c(0.01, 0.1, 1)))
+best_model <- tuned$best.model
+summary(best_model)
+```
+
+# Neural Network
+```{r}
+library(keras3)
+RNN_model = keras_model_sequential() %>%
+  layer_simple_rnn(units = 10, activation = "relu", input_shape = c(1350, 1)) %>%
+  layer_dense(units = 1)
+
+RNN_model %>% compile(
+  optimizer = "adam",
+  loss = "mse"
+)
+
+summary(RNN_model)
+
+history = RNN_model %>% fit(
+  x_train, y_train,
+  epochs = 10, batch_size = 16,
+  validation_data = list(x_test, y_test),
+  verbose = 1
+)
+
+y_pred = RNN_model %>% predict(x_test)
+(mse = mean((y_pred- y_test)^2))
+```
+
+
+
+1)	Simple Linear Regression
+This model is often the first approach to try when you believe the relationship between the variables is linear.
+Pros:
+Easy to implement and interpret.
+Provides a clear and direct relationship between the predictor and the outcome.
+Cons:
+Assumes a linear relationship; might not work well if the relationship is nonlinear.
+Sensitive to outliers.
+the relationship between the predictors and the target is nonlinear, a more complex model is needed, like multiple regression.
+
+
+2)	Ridge Regression
+we have correlation among the predictors. It adds a penalty term to the least squares estimation, shrinking the coefficients to prevent overfitting. While simple linear regression is easy to implement, it doesn’t handle multicollinearity well, and its performance can degrade when predictors are highly correlated.
+Pros:
+Reduces model complexity and prevents overfitting by regularizing the coefficients.
+Useful in high-dimensional datasets.
+Cons:
+Does not perform feature selection (all features are included in the model).
+The results might be harder to interpret due to the regularization.
+We want to perform feature selection, lasso regression might be a better choice.
+
+
+3)	Lasso Regression
+Ridge regression shrinks coefficients but does not perform feature selection, meaning all features remain in the model, which can make interpretation difficult. Lasso regression, on the other hand, performs both regularization and feature selection by driving some coefficients to zero. This leads to a simpler, more interpretable model with fewer predictors. This is useful when we have some irrelevant predictors.
+Pros:
+Performs feature selection, resulting in simpler, more interpretable models.
+Effective when there are many irrelevant or redundant features.
+Cons:
+Might eliminate useful predictors if the penalty is too high.
+We use lasso regression to perform feature selection in addition to regularization.
+
+
+4)	Generalized Additive Model (GAM)
+This model allows for nonlinear relationships between predictors and the target variable(Amtiaz) and it fits a separate smoother for each predictor. The relationship between the predictors and Amtiaz is nonlinear but we want interpretability. While lasso regression is useful for regularization and feature selection, it assumes a linear relationship between the predictors and the target. GAM offers greater flexibility when the relationship is nonlinear and allows each predictor to have a nonlinear effect, improving model performance when there is no simple linear relationship.
+Pros:
+Allows for nonlinear relationships, providing flexibility in modeling complex data.
+More interpretable than non-parametric models like random forests.
+Cons:
+Can be computationally expensive.
+Requires careful tuning of smoothers.
+
+
+5)	Random Forest
+It is particularly useful for capturing complex, nonlinear relationships in the data. GAM is interpretable but might not perform as well as some machine learning methods when it comes to complex, high-dimensional data. We have a large number of predictors and complex interactions so that is why we use this model.
+Pros:
+Handles both numerical and categorical data.
+Robust to overfitting and performs well even with noisy data.
+Cons:
+Less interpretable compared to simpler models.
+Computationally expensive and can become slow with large datasets.
+
+
+6)	Support Vector Regression (SVR)
+t tries to find a hyperplane that best separates the data with a margin, handling nonlinear relationships using kernel functions. We have a dataset and need a powerful, nonlinear model that can handle complex relationships. Also the R-square of tree is low.
+Pros:
+Works well for high-dimensional spaces.
+Robust to overfitting, especially in high-dimensional space.
+Cons:
+Sensitive to the choice of the kernel and hyperparameters.
+Computationally expensive for large datasets.
+
+
+7)	Neural Networks (NN)
+This model is highly flexible and capable of learning complex patterns in the data through layers of interconnected nodes.
+Pros:
+Extremely powerful and flexible for modeling complex, nonlinear relationships.
+Can learn intricate patterns from large datasets.
+Cons:
+Difficult to interpret due to the "black-box" nature.
+"""
