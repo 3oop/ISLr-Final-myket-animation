@@ -1,0 +1,441 @@
+---
+title: "amaramtiazy"
+author: "luka"
+date: "2025-02-05"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(readr)
+clean_data <- read_csv("C:/Users/USER/Downloads/clean_data.csv")
+data<-clean_data
+```
+
+
+```{r}
+# Transfer required columns to new dataframe
+new_data <- data[, c("Name","Country", "Series", "Animation", "Western", "Adventure", "Comedy", "Family", "Fantasy", "Mystery", "Action", "Romance", "Drama", "SciFi", "ShortFilm", "Crime", "Musical", "Korean", "Thriller", "Anime", "Music")]
+
+# Display new dataframe
+print(new_data)
+
+
+```
+
+K-Modes
+
+```{r}
+# Load required libraries
+library(klaR)
+library(dplyr)
+library(stringr)
+library(readr)
+
+# Extract columns excluding "Country" and "Name"
+features <- new_data[, !names(new_data) %in% c("Country", "Name")]
+
+# Apply K-Modes clustering
+set.seed(123)
+k <- 23  # Number of clusters
+kmodes_result <- kmodes(features, modes = k)
+
+# Add cluster information to the data
+new_data$Cluster <- kmodes_result$cluster
+
+
+
+
+```
+
+
+
+```{r}
+#Function to find similar animations within each cluster without checking for similar words
+
+find_similar_animations <- function(animation_name, cluster_data) {
+  similar_animations <- cluster_data$Name[cluster_data$Name != animation_name]
+  
+  if (length(similar_animations) > 12) {
+    similar_animations <- similar_animations[1:12]
+  } else if (length(similar_animations) < 12) {
+    similar_animations <- c(similar_animations, rep(NA, 12 - length(similar_animations)))
+  }
+  
+  return(similar_animations)
+}
+
+# Process for each animation in the list
+results <- list()
+
+for (i in 1:nrow(new_data)) {
+  animation_name <- new_data$Name[i]
+  cluster_id <- new_data$Cluster[i]
+  cluster_data <- new_data[new_data$Cluster == cluster_id, ]
+  similar_animations <- find_similar_animations(animation_name, cluster_data)
+  results[[animation_name]] <- similar_animations
+}
+
+# Convert the results list to a dataframe
+results_df <- do.call(rbind, lapply(names(results), function(x) {
+  cbind(Animation = x, setNames(as.data.frame(t(results[[x]])), paste0("Similar_", 1:12)))
+}))
+desktop_path <- file.path(Sys.getenv("USERPROFILE"), "Desktop", "Similar_K-Modes")
+
+# Save the data to a CSV file on the desktop
+write_csv(results_df, desktop_path)
+
+# Display confirmation message
+print("The data has been successfully saved to a CSV file on the desktop.")
+```
+
+K-Prototypes
+
+```{r}
+#  load clustMixType library
+library(clustMixType)
+
+# Assume data contains your data
+# Select numeric and categorical columns
+numeric_columns <- c("IMDB_Link", "Amtiaz", "Number_People") # Replace with the names of numeric columns
+categorical_columns <- c("Series", "Animation", "Western", "Adventure", "Comedy", "Family", "Fantasy", "Mystery", "Action", "Romance", "Drama", "SciFi", "ShortFilm", "Crime", "Musical", "Korean", "Thriller", "Anime", "Music") # Replace with the names of categorical columns
+# Convert categorical variables to factors
+data[categorical_columns] <- lapply(data[categorical_columns], as.factor)
+
+# Check that categorical variables have been converted to factors
+str(data[categorical_columns])
+# Perform K-Prototypes
+set.seed(123)
+k <- 12  # Number of clusters
+kproto_result <- kproto(data[, c(numeric_columns, categorical_columns)], k = k)
+
+# Add cluster information to the data
+data$Cluster <- kproto_result$cluster
+
+# Display results
+print(data)
+
+
+```
+
+```{r}
+
+
+# Process for each animation in the list
+results <- list()
+
+for (i in 1:nrow(data)) {
+  animation_name <- data$Name[i]
+  cluster_id <- data$Cluster[i]
+  cluster_data <- data[data$Cluster == cluster_id, ]
+  similar_animations <- find_similar_animations(animation_name, cluster_data)
+  results[[animation_name]] <- similar_animations
+}
+
+#  Convert the results list to a dataframe
+results_df <- do.call(rbind, lapply(names(results), function(x) {
+  cbind(Animation = x, setNames(as.data.frame(t(results[[x]])), paste0("Similar_", 1:12)))
+}))
+desktop_path <- file.path(Sys.getenv("USERPROFILE"), "Desktop", "Similar_K-Prototypes")
+
+# Save the data to a CSV file on the desktop
+write_csv(results_df, desktop_path)
+
+# Display confirmation message
+print("The data has been successfully saved to a CSV file on the desktop.")
+
+```
+
+Gower’s Dissimilarity , PAM
+
+```{r}
+library(cluster)
+new2_data <- data[, c("Series", "Animation", "Western", "Adventure", "Comedy", "Family", "Fantasy", "Mystery", "Action", "Romance", "Drama", "SciFi", "ShortFilm", "Crime", "Musical", "Korean", "Thriller", "Anime", "Music","IMDB_Link", "Amtiaz", "Number_People")]
+
+# Assume data contains your data
+# Compute Gower dissimilarity index
+gower_dist <- daisy(new2_data, metric = "gower")
+
+# Run PAM algorithm
+set.seed(123)
+k <- 30  # Number of clusters
+pam_result <- pam(gower_dist, k = k)
+
+# Add cluster information to the data
+new2_data$Cluster <- pam_result$clustering
+new2_data$Name <- data$Name
+
+# Display results
+print(new2_data)
+
+
+```
+
+
+```{r}
+
+
+# Process for each animation in the list
+results <- list()
+
+for (i in 1:nrow(new2_data)) {
+  animation_name <- new2_data$Name[i]
+  cluster_id <- new2_data$Cluster[i]
+  cluster_data <- new2_data[new2_data$Cluster == cluster_id, ]
+  similar_animations <- find_similar_animations(animation_name, cluster_data)
+  results[[animation_name]] <- similar_animations
+}
+
+# Convert the results list to a dataframe
+results_df <- do.call(rbind, lapply(names(results), function(x) {
+  cbind(Animation = x, setNames(as.data.frame(t(results[[x]])), paste0("Similar_", 1:12)))
+}))
+
+desktop_path <- file.path(Sys.getenv("USERPROFILE"), "Desktop", "similar_pam.csv")
+
+# Save the data to a CSV file on the desktop
+write_csv(results_df, desktop_path)
+
+# Display confirmation message
+print("The data has been successfully saved to a CSV file on the desktop.")
+```
+
+K-Means
+
+```{r}
+# Load required libraries
+library(dplyr)
+library(cluster)
+
+# Assume new3_data contains your data
+new3_data <- data[, c("IMDB_Link", "Amtiaz", "Number_People")]
+
+# Standardize the numeric columns (optional but recommended)
+new3_data_scaled <- scale(new3_data)
+
+# Determine the number of clusters (K) using the Elbow method (optional)
+wss <- (nrow(new3_data_scaled) - 1) * sum(apply(new3_data_scaled, 2, var))
+for (i in 2:15) {
+  wss[i] <- sum(kmeans(new3_data_scaled, centers = i)$tot.withinss)
+}
+plot(1:15, wss, type = "b", xlab = "Number of Clusters", ylab = "Within groups sum of squares")
+
+# Set the number of clusters (K) based on the Elbow method or desired value
+k <- 5  # You can change this value based on the Elbow plot or desired number of clusters
+
+# Apply K-Means clustering
+set.seed(123)
+kmeans_result <- kmeans(new3_data_scaled, centers = k, nstart = 25)
+
+# Add cluster information to the data
+new3_data$Cluster <- kmeans_result$cluster
+new3_data$Name <- data$Name  # Adding Name column for reference
+
+# Display results
+print(new3_data)
+
+```
+
+```{r}
+
+# Process for each animation in the list
+results <- list()
+
+for (i in 1:nrow(new3_data)) {
+  animation_name <- new3_data$Name[i]
+  cluster_id <- new3_data$Cluster[i]
+  cluster_data <- new3_data[new3_data$Cluster == cluster_id, ]
+  similar_animations <- find_similar_animations(animation_name, cluster_data)
+  results[[animation_name]] <- similar_animations
+}
+
+# Convert the results list to a dataframe
+results_df <- do.call(rbind, lapply(names(results), function(x) {
+  cbind(Animation = x, setNames(as.data.frame(t(results[[x]])), paste0("Similar_", 1:12)))
+}))
+desktop_path <- file.path(Sys.getenv("USERPROFILE"), "Desktop", "similar_K-Means.csv")
+
+# Save the data to a CSV file on the desktop
+write_csv(results_df, desktop_path)
+
+# Display confirmation message
+print("The data has been successfully saved to a CSV file on the desktop.")
+```
+
+
+These selections were made based on the clustering method we used
+
+My approach:
+
+Now, if we want to create a list of similar animations for recommendation on a website, we need to use clustering.
+
+In this method, I first select animations with common words as part of similar animations.
+
+Then, using K-Prototypes, I select similar animations that do not have common words.
+
+```{r}
+library(dplyr)
+library(stringr)
+library(readr)
+library(clustMixType)
+
+# Assume we have a list of animation names
+animation_names <- data$Name
+
+# Function to preprocess names
+preprocess_name <- function(name) {
+  words <- str_split(tolower(name), "\\W+")[[1]]
+  words <- words[words != "انیمیشن" & nchar(words) > 2]
+  return(words)
+}
+
+# Extract words
+animation_words <- lapply(animation_names, preprocess_name)
+
+# Find similar animations
+similar_animations <- lapply(seq_along(animation_words), function(i) {
+  similar <- sapply(seq_along(animation_words), function(j) {
+    if (i != j && any(animation_words[[i]] %in% animation_words[[j]])) {
+      return(animation_names[j])
+    } else {
+      return(NA)
+    }
+  })
+  similar <- similar[!is.na(similar)]
+  if (length(similar) < 12) {
+    similar <- c(similar, rep("#", 12 - length(similar)))
+  } else {
+    similar <- similar[1:12]
+  }
+  return(similar)
+})
+
+# Create data frame and save to CSV file
+df <- data.frame(Animation_Name = animation_names, do.call(rbind, similar_animations))
+colnames(df)[2:13] <- paste0("Similar_", 1:12)
+numeric_columns <- c("IMDB_Link", "Amtiaz", "Number_People")
+categorical_columns <- c("Series", "Animation", "Western", "Adventure", "Comedy", "Family", "Fantasy", "Mystery", "Action", "Romance", "Drama", "SciFi", "ShortFilm", "Crime", "Musical", "Korean", "Thriller", "Anime", "Music")
+data[categorical_columns] <- lapply(data[categorical_columns], as.factor)
+set.seed(123)
+k <- 12
+kproto_result <- kproto(data[, c(numeric_columns, categorical_columns)], k = k)
+data$Cluster <- kproto_result$cluster
+
+# Fill in missing values based on the cluster
+df <- df %>%
+  rowwise() %>%
+  mutate(across(starts_with("Similar_"), ~ ifelse(. == "#", 
+                sample(animation_names[data$Cluster == data$Cluster[which(animation_names == Animation_Name)]], 1), .)))
+desktop_path <- file.path(Sys.getenv("USERPROFILE"), "Desktop", "similar_animations.csv")
+
+# Save the data to a CSV file on the desktop
+write_csv(df, desktop_path)
+
+# Display confirmation message
+print("The data has been successfully saved to a CSV file on the desktop.")
+
+
+```
+
+But there is still an error; for instance, the word 'dog' has two letters. To reduce this error, we do not remove all two-letter words, but rather those that are redundant
+
+First, identify redundant two- and three-letter words.
+
+```{r}
+library(tidyverse)
+
+animation_names <- data$Name
+
+# Function to preprocess names
+preprocess_name <- function(name) {
+  words <- str_split(tolower(name), "\\W+")[[1]]
+  words <- words[words != "انیمیشن"]
+  return(words)
+}
+
+# Extract words from animation names
+words_list <- unlist(map(animation_names, preprocess_name))
+
+# Filter two-letter and three-letter words
+short_words <- words_list[nchar(words_list) == 2 | nchar(words_list) == 3]
+
+# Remove duplicate words
+unique_short_words <- unique(short_words)
+
+# Print the unique two-letter and three-letter words
+print(unique_short_words)
+
+```
+
+
+```{r}
+library(dplyr)
+library(stringr)
+library(readr)
+library(clustMixType)
+
+# Assume we have a list of animation names
+animation_names <- data$Name
+
+# List of harof_izafeh
+harof_izafeh <- c("ها", "حال", "یا", "یه", "پن", "چه", "اگر", "دهد", "آور", "هی", "شدن", "اوه")
+
+# Function to preprocess names and remove harof_izafeh
+preprocess_name <- function(name) {
+  words <- str_split(tolower(name), "\\W+")[[1]]
+  words <- words[words != "انیمیشن" & nchar(words) > 1]
+  words <- words[!words %in% harof_izafeh]
+  return(words)
+}
+
+# Extract words
+animation_words <- lapply(animation_names, preprocess_name)
+
+# Find similar animations
+similar_animations <- lapply(seq_along(animation_words), function(i) {
+  similar <- sapply(seq_along(animation_words), function(j) {
+    if (i != j && any(animation_words[[i]] %in% animation_words[[j]])) {
+      return(animation_names[j])
+    } else {
+      return(NA)
+    }
+  })
+  similar <- similar[!is.na(similar)]
+  if (length(similar) < 12) {
+    similar <- c(similar, rep("#", 12 - length(similar)))
+  } else {
+    similar <- similar[1:12]
+  }
+  return(similar)
+})
+
+# Create data frame and save to CSV file
+df <- data.frame(Animation_Name = animation_names, do.call(rbind, similar_animations))
+colnames(df)[2:13] <- paste0("Similar_", 1:12)
+numeric_columns <- c("IMDB_Link", "Amtiaz", "Number_People")
+categorical_columns <- c("Series", "Animation", "Western", "Adventure", "Comedy", "Family", "Fantasy", "Mystery", "Action", "Romance", "Drama", "SciFi", "ShortFilm", "Crime", "Musical", "Korean", "Thriller", "Anime", "Music")
+data[categorical_columns] <- lapply(data[categorical_columns], as.factor)
+set.seed(123)
+k <- 12
+kproto_result <- kproto(data[, c(numeric_columns, categorical_columns)], k = k)
+data$Cluster <- kproto_result$cluster
+
+# Fill in missing values based on the cluster
+df <- df %>%
+  rowwise() %>%
+  mutate(across(starts_with("Similar_"), ~ ifelse(. == "#", 
+                sample(animation_names[data$Cluster == data$Cluster[which(animation_names == Animation_Name)]], 1), .)))
+desktop_path <- file.path(Sys.getenv("USERPROFILE"), "Desktop", "similar_animations2.csv")
+
+# Save the data to a CSV file on the desktop
+write_csv(df, desktop_path)
+
+# Display confirmation message
+print("The data has been successfully saved to a CSV file on the desktop.")
+
+```
+
+In my opinion, this list is the best recommendation for introducing twelve different animations.
