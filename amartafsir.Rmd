@@ -38,52 +38,11 @@ X_train <- X[trainIndex, ]
 X_test <- X[-trainIndex, ]
 y_train <- y[trainIndex]
 y_test <- y[-trainIndex]
-
-# Train the models
-models <- list(
-  "Linear Regression" = lm(y_train ~ ., data = as.data.frame(X_train)),
-  "Ridge Regression" = cv.glmnet(X_train, y_train, alpha = 0),
-  "Lasso Regression" = cv.glmnet(X_train, y_train, alpha = 1),
-  "Random Forest" = randomForest(X_train, y_train),
-  "Support Vector Regression (SVR)" = svm(X_train, y_train),
-  "Neural Networks (NN)" = nnet(X_train, y_train, size = 10, linout = TRUE, trace = FALSE),
-  "Generalized Additive Model (GAM)" = gam(y_train ~ s(X_train)),
-  "XGBoost" = xgboost(data = X_train, label = y_train, nrounds = 100, objective = "reg:squarederror")
-)
-
-# Evaluate the models
-results <- lapply(models, function(model) {
-  if (inherits(model, "cv.glmnet")) {
-    y_pred <- predict(model, X_test, s = "lambda.min")
-  } else if (inherits(model, "gam")) {
-    y_pred <- predict(model, as.data.frame(X_test))
-  } else if (inherits(model, "xgb.Booster")) {
-    y_pred <- predict(model, X_test)
-  } else {
-    y_pred <- predict(model, newdata = as.data.frame(X_test))
-  }
-  mse <- mean((y_test - y_pred)^2)
-  return(mse)
-})
-
-# Display results
-results <- unlist(results)
-for (name in names(results)) {
-  cat(paste(name, "MSE =", results[[name]], "\n"))
-}
-
-# Select the best model based on the lowest MSE
-best_model_name <- names(which.min(results))
-cat("The best model is:", best_model_name, "\n")
-
 ```
 
 ```{r}
 # Load required libraries
 library(xgboost)
-
-# Seed for reproducibility
-set.seed(42)
 
 # Convert training and test data to DMatrix format
 dtrain <- xgb.DMatrix(data = X_train, label = y_train)
