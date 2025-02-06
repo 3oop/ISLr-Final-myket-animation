@@ -1,0 +1,159 @@
+---
+title: "amar.rosa"
+author: "luka"
+date: "2025-02-06"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+clean_data <- read_csv("C:/Users/USER/Downloads/clean_data.csv")
+df<-clean_data
+```
+```{r}
+# Load necessary libraries
+library(MASS)
+library(glmnet)
+library(randomForest)
+library(e1071)
+library(nnet)
+library(mgcv)
+library(xgboost)
+
+# Remove unnecessary columns
+data <- data[, -c(1, 2, 3, 7, 9)]  # Remove specified columns
+X <- data[, -which(names(data) == "Amtiaz" | names(data) == "country")]
+y <- data$Amtiaz
+
+# Convert categorical variables to dummy variables
+X <- model.matrix(~ . - 1, data = X)
+
+# Split the data into training and test sets
+set.seed(42)
+trainIndex <- sample(1:nrow(X), 0.8 * nrow(X))
+X_train <- X[trainIndex, ]
+X_test <- X[-trainIndex, ]
+y_train <- y[trainIndex]
+y_test <- y[-trainIndex]
+
+# Train the models
+models <- list(
+  "Linear Regression" = lm(y_train ~ ., data = as.data.frame(X_train)),
+  "Ridge Regression" = cv.glmnet(X_train, y_train, alpha = 0),
+  "Lasso Regression" = cv.glmnet(X_train, y_train, alpha = 1),
+  "Random Forest" = randomForest(X_train, y_train),
+  "Support Vector Regression (SVR)" = svm(X_train, y_train),
+  "Neural Networks (NN)" = nnet(X_train, y_train, size = 10, linout = TRUE, trace = FALSE),
+  "Generalized Additive Model (GAM)" = gam(y_train ~ s(X_train)),
+  "XGBoost" = xgboost(data = X_train, label = y_train, nrounds = 100, objective = "reg:squarederror")
+)
+
+# Evaluate the models
+results <- lapply(models, function(model) {
+  if (inherits(model, "cv.glmnet")) {
+    y_pred <- predict(model, X_test, s = "lambda.min")
+  } else if (inherits(model, "gam")) {
+    y_pred <- predict(model, as.data.frame(X_test))
+  } else if (inherits(model, "xgb.Booster")) {
+    y_pred <- predict(model, X_test)
+  } else {
+    y_pred <- predict(model, newdata = as.data.frame(X_test))
+  }
+  mse <- mean((y_test - y_pred)^2)
+  return(mse)
+})
+
+# Display results
+results <- unlist(results)
+for (name in names(results)) {
+  cat(paste(name, "MSE =", results[[name]], "\n"))
+}
+
+# Select the best model based on the lowest MSE
+best_model_name <- names(which.min(results))
+cat("The best model is:", best_model_name, "\n")
+
+```
+
+```{r}
+# Load required libraries
+library(xgboost)
+
+# Seed for reproducibility
+set.seed(42)
+
+# Convert training and test data to DMatrix format
+dtrain <- xgb.DMatrix(data = X_train, label = y_train)
+dtest <- xgb.DMatrix(data = X_test, label = y_test)
+
+# Set parameters for XGBoost
+params <- list(
+  objective = "reg:squarederror",
+  eval_metric = "rmse",
+  max_depth = 6,
+  eta = 0.3,
+  nthread = 2,
+  gamma = 0,
+  colsample_bytree = 1,
+  min_child_weight = 1,
+  subsample = 1
+)
+
+# Train the XGBoost model
+xgb_model <- xgb.train(params, dtrain, nrounds = 200, watchlist = list(train = dtrain), early_stopping_rounds = 10)
+
+# Predict using the model
+y_pred <- predict(xgb_model, dtest)
+
+# Calculate Mean Squared Error
+mse <- mean((y_test - y_pred)^2)
+print(paste("XGBoost MSE:", mse))
+
+# Save the model
+save(xgb_model, file = "xgboost_model.RData")
+
+```
+
+```{r}
+# Load necessary libraries
+library(xgboost)
+library(DALEX)
+library(lime)
+
+# Train the XGBoost model (from previous steps)
+# Convert training and test data to DMatrix format
+dtrain <- xgb.DMatrix(data = X_train, label = y_train)
+dtest <- xgb.DMatrix(data = X_test, label = y_test)
+
+params <- list(
+  objective = "reg:squarederror",
+  eval_metric = "rmse",
+  max_depth = 6,
+  eta = 0.3,
+  nthread = 2,
+  gamma = 0,
+  colsample_bytree = 1,
+  min_child_weight = 1,
+  subsample = 1
+)
+
+xgb_model <- xgb.train(params, dtrain, nrounds = 200, watchlist = list(train = dtrain), early_stopping_rounds = 10)
+
+# Global Methods
+# 1. Feature Importance
+importance_matrix <- xgb.importance(model = xgb_model)
+print(importance_matrix)
+
+# 2. Partial Dependence Plot (PDP)
+explainer <- DALEX::explain(xgb_model, data = X_train, y = y_train, label = "XGBoost Model")
+pdp <- model_profile(explainer, variable = "Total_Episodes")  # Replace "your_feature" with the feature name
+plot(pdp)
+
+
+
+
+```
+
